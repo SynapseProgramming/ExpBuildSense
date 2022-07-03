@@ -23,7 +23,6 @@ void app_main(void)
            chip_info.cores,
            (chip_info.features & CHIP_FEATURE_BT) ? "/BT" : "",
            (chip_info.features & CHIP_FEATURE_BLE) ? "/BLE" : "");
-
     printf("silicon revision %d, ", chip_info.revision);
 
     printf("%uMB %s flash\n", spi_flash_get_chip_size() / (1024 * 1024),
@@ -31,7 +30,8 @@ void app_main(void)
 
     printf("Minimum free heap size: %d bytes\n", esp_get_minimum_free_heap_size());
 
-    for (int i = 10; i >= 0; i--) {
+    for (int i = 10; i >= 0; i--)
+    {
         printf("Restarting in %d seconds...\n", i);
         vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
