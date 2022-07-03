@@ -9,36 +9,32 @@
 #include <stdio.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include <driver/adc.h>
+#include <esp_adc_cal.h>
 #include "driver/gpio.h"
 #include "esp_log.h"
-#include <string.h>
 #include "sdkconfig.h"
 
-static const char *TAG = "example";
+#define V_REF 1700
 
-#define BLINK_GPIO 14
-
-static uint8_t s_led_state = 0;
-
-static void blink_led(void)
-{
-    /* Set the GPIO level according to the state (LOW or HIGH)*/
-    esp_err_t error;
-    error = gpio_set_level(BLINK_GPIO, s_led_state);
-    ESP_LOGI(TAG, "error status  %s!", esp_err_to_name(error));
-}
+// ADC1_CHANNEL_4 is pin 32
 
 void app_main(void)
 {
-    //pins may have multiple functions. use this function to set it as a gpio pin
-    gpio_pad_select_gpio(BLINK_GPIO);
-    gpio_set_direction(BLINK_GPIO, GPIO_MODE_OUTPUT);
+
+    adc1_config_width(ADC_WIDTH_BIT_12);
+    adc1_config_channel_atten(ADC1_CHANNEL_4, ADC_ATTEN_DB_11);
+
+    // Calculate ADC characteristics i.e. gain and offset factors
+    esp_adc_cal_characteristics_t characteristics;
+    esp_adc_cal_characterize(ADC1_CHANNEL_4,ADC_ATTEN_DB_11,ADC_WIDTH_BIT_12,V_REF,&characteristics);
+
     while (1)
     {
-        ESP_LOGI(TAG, "Turning the LED %s!", s_led_state == true ? "ON" : "OFF");
-        blink_led();
-        /* Toggle the LED state */
-        s_led_state = !s_led_state;
-        vTaskDelay(500 / portTICK_PERIOD_MS);
+
+       // int val = adc1_get_raw(ADC1_CHANNEL_0);
+        uint32_t  voltage = esp_adc_cal_raw_to_voltage(ADC1_CHANNEL_4, &characteristics);
+        ESP_LOGI("LOL", "ADC value %d", voltage);
+        vTaskDelay(100 / portTICK_PERIOD_MS);
     }
 }
