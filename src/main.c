@@ -1,11 +1,4 @@
-/* Blink Example
 
-   This example code is in the Public Domain (or CC0 licensed, at your option.)
-
-   Unless required by applicable law or agreed to in writing, this
-   software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-   CONDITIONS OF ANY KIND, either express or implied.
-*/
 #include <stdio.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -27,14 +20,14 @@ void app_main(void)
 
     // Calculate ADC characteristics i.e. gain and offset factors
     esp_adc_cal_characteristics_t characteristics;
-    esp_adc_cal_characterize(ADC1_CHANNEL_4,ADC_ATTEN_DB_11,ADC_WIDTH_BIT_12,V_REF,&characteristics);
+    esp_adc_cal_characterize(ADC_UNIT_1, ADC_ATTEN_DB_11, ADC_WIDTH_BIT_12, 0, &characteristics);
 
     while (1)
     {
 
-       // int val = adc1_get_raw(ADC1_CHANNEL_0);
-        uint32_t  voltage = esp_adc_cal_raw_to_voltage(ADC1_CHANNEL_4, &characteristics);
-        ESP_LOGI("LOL", "ADC value %d", voltage);
+        uint32_t val = adc1_get_raw(ADC1_CHANNEL_4);
+        uint32_t  voltage = esp_adc_cal_raw_to_voltage(val, &characteristics);
+        ESP_LOGI("current", "ADC in mV %d", voltage);
         vTaskDelay(100 / portTICK_PERIOD_MS);
     }
 }
