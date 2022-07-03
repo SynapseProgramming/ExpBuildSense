@@ -19,12 +19,10 @@ static const char *TAG = "i2c-simple-example";
 #define I2C_MASTER_RX_BUF_DISABLE 0 /*!< I2C master doesn't need buffer */
 #define I2C_MASTER_TIMEOUT_MS 1000
 
-#define BMA220_SENSOR_ADDR 0x0A        /*!< Slave address of the BMA220 sensor */
-#define MPU9250_WHO_AM_I_REG_ADDR 0x75 /*!< Register addresses of the "who am I" register */
-
-#define MPU9250_PWR_MGMT_1_REG_ADDR 0x6B /*!< Register addresses of the power managment register */
-#define MPU9250_RESET_BIT 7
-
+#define BMA220_SENSOR_ADDR 0x0A /*!< Slave address of the BMA220 sensor */
+#define BMA220_SENSOR_GETX 0x04
+#define BMA220_SENSOR_GETY 0x06
+#define BMA220_SENSOR_GETZ 0x08
 
 // function to initialise the BMA220 accelerometer sensor
 static esp_err_t init_BMA220()
@@ -60,17 +58,16 @@ static esp_err_t i2c_master_init(void)
     return i2c_driver_install(i2c_master_port, conf.mode, I2C_MASTER_RX_BUF_DISABLE, I2C_MASTER_TX_BUF_DISABLE, 0);
 }
 
-// function to get the X value of the BMA220 sensor. Must be called after BMA220_init
-// argument would contain new x value
+// function to get the acceleration value of the BMA220 sensor. Must be called after BMA220_init
+// argument would contain acceleration value
 
-static esp_err_t BMA220_getX(int8_t *x_value)
+static esp_err_t BMA220_getAcc(uint8_t direction, int8_t *acc_value)
 {
-    uint8_t x_command = 0x04;
     // shift bits to the right to account for offset
-    uint8_t shifted_x_value = 0;
+    uint8_t shifted_value = 0;
     esp_err_t err;
-    err = i2c_master_write_read_device(I2C_MASTER_NUM, BMA220_SENSOR_ADDR, &x_command, 1, &shifted_x_value, 1, I2C_MASTER_TIMEOUT_MS / portTICK_PERIOD_MS);
-    *x_value = (int8_t)shifted_x_value >> 2;
+    err = i2c_master_write_read_device(I2C_MASTER_NUM, BMA220_SENSOR_ADDR, &direction, 1, &shifted_value, 1, I2C_MASTER_TIMEOUT_MS / portTICK_PERIOD_MS);
+    *acc_value = (int8_t)shifted_value >> 2;
     return err;
 }
 
@@ -82,14 +79,24 @@ void app_main(void)
 
     ESP_ERROR_CHECK(init_BMA220());
 
-    // get current x of the accelerometer
+    // acceleration values
     int8_t x_val = 0;
+    int8_t y_val = 0;
+    int8_t z_val = 0;
+
     while (1)
     {
 
-        BMA220_getX(&x_val);
+        BMA220_getAcc(BMA220_SENSOR_GETX, &x_val);
         ESP_LOGI(TAG, "X value: %d", x_val);
-        vTaskDelay(100 / portTICK_PERIOD_MS);
+
+        BMA220_getAcc(BMA220_SENSOR_GETY, &y_val);
+        ESP_LOGI(TAG, "Y value: %d", y_val);
+
+        BMA220_getAcc(BMA220_SENSOR_GETZ, &z_val);
+        ESP_LOGI(TAG, "Z value: %d", z_val);
+
+        vTaskDelay(500 / portTICK_PERIOD_MS);
     }
 
     ESP_ERROR_CHECK(i2c_driver_delete(I2C_MASTER_NUM));
