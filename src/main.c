@@ -184,7 +184,7 @@ void task_bme280_bma220(void *ignore)
     {
         while (true)
         {
-            vTaskDelay(40 / portTICK_PERIOD_MS);
+            vTaskDelay(500 / portTICK_PERIOD_MS);
 
             com_rslt = bme280_read_uncomp_pressure_temperature_humidity(
                 &v_uncomp_pressure_s32, &v_uncomp_temperature_s32, &v_uncomp_humidity_s32);
@@ -217,18 +217,23 @@ void task_bme280_bma220(void *ignore)
     vTaskDelete(NULL);
 }
 
-static uint8_t s_led_state = 0;
 
-void task_blink_led(void *ignore)
+void task_sound(void *ignore)
 {
+
+    adc1_config_width(ADC_WIDTH_BIT_12);
+    adc1_config_channel_atten(ADC1_CHANNEL_4, ADC_ATTEN_DB_11);
+    // Calculate ADC characteristics i.e. gain and offset factors
+    esp_adc_cal_characteristics_t characteristics;
+    esp_adc_cal_characterize(ADC_UNIT_1, ADC_ATTEN_DB_11, ADC_WIDTH_BIT_12, 0, &characteristics);
+
     while (1)
     {
-        // ESP_LOGI(TAG, "Turning the LED %s!", s_led_state == true ? "ON" : "OFF");
-        /* Set the GPIO level according to the state (LOW or HIGH)*/
-        gpio_set_level(BLINK_GPIO, s_led_state);
-        /* Toggle the LED state */
-        s_led_state = !s_led_state;
-        vTaskDelay(500 / portTICK_PERIOD_MS);
+
+        uint32_t val = adc1_get_raw(ADC1_CHANNEL_4);
+        uint32_t voltage = esp_adc_cal_raw_to_voltage(val, &characteristics);
+        ESP_LOGI("current", "ADC in mV %d", voltage);
+        vTaskDelay(30 / portTICK_PERIOD_MS);
     }
     vTaskDelete(NULL);
 }
@@ -240,10 +245,6 @@ void app_main(void)
 
     ESP_ERROR_CHECK(init_BMA220());
 
-    // pins may have multiple functions. use this function to set it as a gpio pin
-    gpio_pad_select_gpio(BLINK_GPIO);
-    gpio_set_direction(BLINK_GPIO, GPIO_MODE_OUTPUT);
-
     xTaskCreate(&task_bme280_bma220, "i2c_sensors", 2048, NULL, 6, NULL);
-    xTaskCreate(&task_blink_led, "blink_led", 2048, NULL, 7, NULL);
+    xTaskCreate(&task_sound, "sound_task", 2048, NULL, 7, NULL);
 }
