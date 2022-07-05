@@ -16,7 +16,7 @@ static const char *TAG = "i2c-simple-example";
 #define I2C_MASTER_SCL_IO 26        /*!< GPIO number used for I2C master clock */
 #define I2C_MASTER_SDA_IO 27        /*!< GPIO number used for I2C master data  */
 #define I2C_MASTER_NUM 0            /*!< I2C master i2c port number, the number of i2c peripheral interfaces available will depend on the chip */
-#define I2C_MASTER_FREQ_HZ 400000   /*!< I2C master clock frequency */
+#define I2C_MASTER_FREQ_HZ 400000 /*!< I2C master clock frequency */
 #define I2C_MASTER_TX_BUF_DISABLE 0 /*!< I2C master doesn't need buffer */
 #define I2C_MASTER_RX_BUF_DISABLE 0 /*!< I2C master doesn't need buffer */
 #define I2C_MASTER_TIMEOUT_MS 1000
@@ -34,17 +34,38 @@ static const char *TAG = "i2c-simple-example";
 #define I2C_MASTER_ACK 0
 #define I2C_MASTER_NACK 1
 
-void i2c_master_init()
+// function to initialise the BMA220 accelerometer sensor
+static esp_err_t init_BMA220()
 {
-    i2c_config_t i2c_config = {
+    int err;
+
+    uint8_t low_pass_filter = 0x20;
+    uint8_t filter_config = 0x05;
+    uint8_t write_buf[2] = {low_pass_filter, filter_config};
+
+    err = i2c_master_write_to_device(I2C_MASTER_NUM, BMA220_SENSOR_ADDR, write_buf, sizeof(write_buf), I2C_MASTER_TIMEOUT_MS / portTICK_PERIOD_MS);
+    return err;
+}
+
+/**
+ * @brief i2c master initialization
+ */
+static esp_err_t i2c_master_init(void)
+{
+    int i2c_master_port = I2C_MASTER_NUM;
+
+    i2c_config_t conf = {
         .mode = I2C_MODE_MASTER,
-        .sda_io_num = SDA_PIN,
-        .scl_io_num = SCL_PIN,
+        .sda_io_num = I2C_MASTER_SDA_IO,
+        .scl_io_num = I2C_MASTER_SCL_IO,
         .sda_pullup_en = GPIO_PULLUP_ENABLE,
         .scl_pullup_en = GPIO_PULLUP_ENABLE,
-        .master.clk_speed = 1000000};
-    i2c_param_config(I2C_NUM_0, &i2c_config);
-    i2c_driver_install(I2C_NUM_0, I2C_MODE_MASTER, 0, 0, 0);
+        .master.clk_speed = I2C_MASTER_FREQ_HZ,
+    };
+
+    i2c_param_config(i2c_master_port, &conf);
+
+    return i2c_driver_install(i2c_master_port, conf.mode, I2C_MASTER_RX_BUF_DISABLE, I2C_MASTER_TX_BUF_DISABLE, 0);
 }
 
 s8 BME280_I2C_bus_write(u8 dev_addr, u8 reg_addr, u8 *reg_data, u8 cnt)
@@ -116,6 +137,20 @@ void BME280_delay_msek(u32 msek)
     vTaskDelay(msek / portTICK_PERIOD_MS);
 }
 
+// function to get the acceleration value of the BMA220 sensor. Must be called after BMA220_init
+// argument would contain acceleration value
+
+static esp_err_t BMA220_getAcc(uint8_t direction, int8_t *acc_value)
+{
+    // shift bits to the right to account for offset
+    uint8_t shifted_value = 0;
+    esp_err_t err;
+    err = i2c_master_write_read_device(I2C_MASTER_NUM, BMA220_SENSOR_ADDR, &direction, 1, &shifted_value, 1, I2C_MASTER_TIMEOUT_MS / portTICK_PERIOD_MS);
+    *acc_value = (int8_t)shifted_value >> 2;
+    return err;
+}
+
+// main execution loop
 void task_bme280_normal_mode(void *ignore)
 {
     struct bme280_t bme280 = {
@@ -128,6 +163,11 @@ void task_bme280_normal_mode(void *ignore)
     s32 v_uncomp_pressure_s32;
     s32 v_uncomp_temperature_s32;
     s32 v_uncomp_humidity_s32;
+
+    // acceleration values
+    int8_t x_val = 0;
+    int8_t y_val = 0;
+    int8_t z_val = 0;
 
     com_rslt = bme280_init(&bme280);
 
@@ -150,10 +190,17 @@ void task_bme280_normal_mode(void *ignore)
 
             if (com_rslt == SUCCESS)
             {
-                ESP_LOGI(TAG_BME280, "%.2f degC / %.3f hPa / %.3f %%",
+                // update
+                BMA220_getAcc(BMA220_SENSOR_GETX, &x_val);
+                BMA220_getAcc(BMA220_SENSOR_GETY, &y_val);
+                BMA220_getAcc(BMA220_SENSOR_GETZ, &z_val);
+
+                // ESP_LOGI(TAG_BME280, "%d x / %d y / % z",x_val,y_val,z_val);
+
+                ESP_LOGI("combined sensors", "%.2f degC / %.3f hPa / %.3f / %d x / %d y / %d z %%",
                          bme280_compensate_temperature_double(v_uncomp_temperature_s32),
                          bme280_compensate_pressure_double(v_uncomp_pressure_s32) / 100, // Pa -> hPa
-                         bme280_compensate_humidity_double(v_uncomp_humidity_s32));
+                         bme280_compensate_humidity_double(v_uncomp_humidity_s32), x_val, y_val, z_val);
             }
             else
             {
@@ -219,7 +266,11 @@ void task_bme280_forced_mode(void *ignore)
 
 void app_main(void)
 {
-    i2c_master_init();
+    ESP_ERROR_CHECK(i2c_master_init());
+    ESP_LOGI(TAG, "I2C initialized successfully");
+
+    ESP_ERROR_CHECK(init_BMA220());
+
     xTaskCreate(&task_bme280_normal_mode, "bme280_normal_mode", 2048, NULL, 6, NULL);
     // xTaskCreate(&task_bme280_forced_mode, "bme280_forced_mode",  2048, NULL, 6, NULL);
 }
