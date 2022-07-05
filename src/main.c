@@ -16,7 +16,7 @@ static const char *TAG = "i2c-simple-example";
 #define I2C_MASTER_SCL_IO 26        /*!< GPIO number used for I2C master clock */
 #define I2C_MASTER_SDA_IO 27        /*!< GPIO number used for I2C master data  */
 #define I2C_MASTER_NUM 0            /*!< I2C master i2c port number, the number of i2c peripheral interfaces available will depend on the chip */
-#define I2C_MASTER_FREQ_HZ 400000 /*!< I2C master clock frequency */
+#define I2C_MASTER_FREQ_HZ 400000   /*!< I2C master clock frequency */
 #define I2C_MASTER_TX_BUF_DISABLE 0 /*!< I2C master doesn't need buffer */
 #define I2C_MASTER_RX_BUF_DISABLE 0 /*!< I2C master doesn't need buffer */
 #define I2C_MASTER_TIMEOUT_MS 1000
@@ -151,7 +151,7 @@ static esp_err_t BMA220_getAcc(uint8_t direction, int8_t *acc_value)
 }
 
 // main execution loop
-void task_bme280_normal_mode(void *ignore)
+void task_bme280_bma220(void *ignore)
 {
     struct bme280_t bme280 = {
         .bus_write = BME280_I2C_bus_write,
@@ -216,54 +216,6 @@ void task_bme280_normal_mode(void *ignore)
     vTaskDelete(NULL);
 }
 
-void task_bme280_forced_mode(void *ignore)
-{
-    struct bme280_t bme280 = {
-        .bus_write = BME280_I2C_bus_write,
-        .bus_read = BME280_I2C_bus_read,
-        .dev_addr = BME280_I2C_ADDRESS2,
-        .delay_msec = BME280_delay_msek};
-
-    s32 com_rslt;
-    s32 v_uncomp_pressure_s32;
-    s32 v_uncomp_temperature_s32;
-    s32 v_uncomp_humidity_s32;
-
-    com_rslt = bme280_init(&bme280);
-
-    com_rslt += bme280_set_oversamp_pressure(BME280_OVERSAMP_1X);
-    com_rslt += bme280_set_oversamp_temperature(BME280_OVERSAMP_1X);
-    com_rslt += bme280_set_oversamp_humidity(BME280_OVERSAMP_1X);
-
-    com_rslt += bme280_set_filter(BME280_FILTER_COEFF_OFF);
-    if (com_rslt == SUCCESS)
-    {
-        while (true)
-        {
-            com_rslt = bme280_get_forced_uncomp_pressure_temperature_humidity(
-                &v_uncomp_pressure_s32, &v_uncomp_temperature_s32, &v_uncomp_humidity_s32);
-
-            if (com_rslt == SUCCESS)
-            {
-                ESP_LOGI(TAG_BME280, "%.2f degC / %.3f hPa / %.3f %%",
-                         bme280_compensate_temperature_double(v_uncomp_temperature_s32),
-                         bme280_compensate_pressure_double(v_uncomp_pressure_s32) / 100, // Pa -> hPa
-                         bme280_compensate_humidity_double(v_uncomp_humidity_s32));
-            }
-            else
-            {
-                ESP_LOGE(TAG_BME280, "measure error. code: %d", com_rslt);
-            }
-        }
-    }
-    else
-    {
-        ESP_LOGE(TAG_BME280, "init or setting error. code: %d", com_rslt);
-    }
-
-    vTaskDelete(NULL);
-}
-
 void app_main(void)
 {
     ESP_ERROR_CHECK(i2c_master_init());
@@ -271,6 +223,6 @@ void app_main(void)
 
     ESP_ERROR_CHECK(init_BMA220());
 
-    xTaskCreate(&task_bme280_normal_mode, "bme280_normal_mode", 2048, NULL, 6, NULL);
+    xTaskCreate(&task_bme280_bma220, "i2c_sensors", 2048, NULL, 6, NULL);
     // xTaskCreate(&task_bme280_forced_mode, "bme280_forced_mode",  2048, NULL, 6, NULL);
 }
