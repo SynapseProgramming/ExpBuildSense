@@ -30,6 +30,7 @@ static const char *TAG = "i2c-simple-example";
 #define SCL_PIN I2C_MASTER_SCL_IO
 
 #define TAG_BME280 "BME280"
+#define BLINK_GPIO 14
 
 #define I2C_MASTER_ACK 0
 #define I2C_MASTER_NACK 1
@@ -216,6 +217,22 @@ void task_bme280_bma220(void *ignore)
     vTaskDelete(NULL);
 }
 
+static uint8_t s_led_state = 0;
+
+void task_blink_led(void *ignore)
+{
+    while (1)
+    {
+        // ESP_LOGI(TAG, "Turning the LED %s!", s_led_state == true ? "ON" : "OFF");
+        /* Set the GPIO level according to the state (LOW or HIGH)*/
+        gpio_set_level(BLINK_GPIO, s_led_state);
+        /* Toggle the LED state */
+        s_led_state = !s_led_state;
+        vTaskDelay(500 / portTICK_PERIOD_MS);
+    }
+    vTaskDelete(NULL);
+}
+
 void app_main(void)
 {
     ESP_ERROR_CHECK(i2c_master_init());
@@ -223,6 +240,10 @@ void app_main(void)
 
     ESP_ERROR_CHECK(init_BMA220());
 
+    // pins may have multiple functions. use this function to set it as a gpio pin
+    gpio_pad_select_gpio(BLINK_GPIO);
+    gpio_set_direction(BLINK_GPIO, GPIO_MODE_OUTPUT);
+
     xTaskCreate(&task_bme280_bma220, "i2c_sensors", 2048, NULL, 6, NULL);
-    // xTaskCreate(&task_bme280_forced_mode, "bme280_forced_mode",  2048, NULL, 6, NULL);
+    xTaskCreate(&task_blink_led, "blink_led", 2048, NULL, 7, NULL);
 }
