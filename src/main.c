@@ -4,6 +4,7 @@
 #include "freertos/task.h"
 #include <driver/adc.h>
 #include <esp_adc_cal.h>
+#include <esp_sleep.h>
 #include "esp_err.h"
 #include "driver/gpio.h"
 #include "esp_log.h"
@@ -152,7 +153,7 @@ static esp_err_t BMA220_getAcc(uint8_t direction, int8_t *acc_value)
 }
 
 // main execution loop
-void task_bme280_bma220(void *ignore)
+void task_bme280_bma220()
 {
     struct bme280_t bme280 = {
         .bus_write = BME280_I2C_bus_write,
@@ -182,43 +183,36 @@ void task_bme280_bma220(void *ignore)
     com_rslt += bme280_set_power_mode(BME280_NORMAL_MODE);
     if (com_rslt == SUCCESS)
     {
-        while (true)
+
+        com_rslt = bme280_read_uncomp_pressure_temperature_humidity(
+            &v_uncomp_pressure_s32, &v_uncomp_temperature_s32, &v_uncomp_humidity_s32);
+
+        if (com_rslt == SUCCESS)
         {
-            vTaskDelay(500 / portTICK_PERIOD_MS);
+            // update
+            BMA220_getAcc(BMA220_SENSOR_GETX, &x_val);
+            BMA220_getAcc(BMA220_SENSOR_GETY, &y_val);
+            BMA220_getAcc(BMA220_SENSOR_GETZ, &z_val);
 
-            com_rslt = bme280_read_uncomp_pressure_temperature_humidity(
-                &v_uncomp_pressure_s32, &v_uncomp_temperature_s32, &v_uncomp_humidity_s32);
+            // ESP_LOGI(TAG_BME280, "%d x / %d y / % z",x_val,y_val,z_val);
 
-            if (com_rslt == SUCCESS)
-            {
-                // update
-                BMA220_getAcc(BMA220_SENSOR_GETX, &x_val);
-                BMA220_getAcc(BMA220_SENSOR_GETY, &y_val);
-                BMA220_getAcc(BMA220_SENSOR_GETZ, &z_val);
-
-                // ESP_LOGI(TAG_BME280, "%d x / %d y / % z",x_val,y_val,z_val);
-
-                ESP_LOGI("combined sensors", "%.2f degC / %.3f hPa / %.3f / %d x / %d y / %d z %%",
-                         bme280_compensate_temperature_double(v_uncomp_temperature_s32),
-                         bme280_compensate_pressure_double(v_uncomp_pressure_s32) / 100, // Pa -> hPa
-                         bme280_compensate_humidity_double(v_uncomp_humidity_s32), x_val, y_val, z_val);
-            }
-            else
-            {
-                ESP_LOGE(TAG_BME280, "measure error. code: %d", com_rslt);
-            }
+            ESP_LOGI("combined sensors", "%.2f degC / %.3f hPa / %.3f / %d x / %d y / %d z %%",
+                     bme280_compensate_temperature_double(v_uncomp_temperature_s32),
+                     bme280_compensate_pressure_double(v_uncomp_pressure_s32) / 100, // Pa -> hPa
+                     bme280_compensate_humidity_double(v_uncomp_humidity_s32), x_val, y_val, z_val);
+        }
+        else
+        {
+            ESP_LOGE(TAG_BME280, "measure error. code: %d", com_rslt);
         }
     }
     else
     {
         ESP_LOGE(TAG_BME280, "init or setting error. code: %d", com_rslt);
     }
-
-    vTaskDelete(NULL);
 }
 
-
-void task_sound(void *ignore)
+void task_sound()
 {
 
     adc1_config_width(ADC_WIDTH_BIT_12);
@@ -227,24 +221,21 @@ void task_sound(void *ignore)
     esp_adc_cal_characteristics_t characteristics;
     esp_adc_cal_characterize(ADC_UNIT_1, ADC_ATTEN_DB_11, ADC_WIDTH_BIT_12, 0, &characteristics);
 
-    while (1)
-    {
-
-        uint32_t val = adc1_get_raw(ADC1_CHANNEL_4);
-        uint32_t voltage = esp_adc_cal_raw_to_voltage(val, &characteristics);
-        ESP_LOGI("current", "ADC in mV %d", voltage);
-        vTaskDelay(30 / portTICK_PERIOD_MS);
-    }
-    vTaskDelete(NULL);
+    uint32_t val = adc1_get_raw(ADC1_CHANNEL_4);
+    uint32_t voltage = esp_adc_cal_raw_to_voltage(val, &characteristics);
+    ESP_LOGI("current", "ADC in mV %d", voltage);
 }
 
 void app_main(void)
 {
     ESP_ERROR_CHECK(i2c_master_init());
     ESP_LOGI(TAG, "I2C initialized successfully");
+    ESP_LOGI("INFO:", "Just Woke Up!");
+    esp_sleep_enable_timer_wakeup(5e6);
+    task_sound();
+    task_bme280_bma220();
 
     ESP_ERROR_CHECK(init_BMA220());
 
-    xTaskCreate(&task_bme280_bma220, "i2c_sensors", 2048, NULL, 6, NULL);
-    xTaskCreate(&task_sound, "sound_task", 2048, NULL, 7, NULL);
+    esp_deep_sleep_start();
 }
