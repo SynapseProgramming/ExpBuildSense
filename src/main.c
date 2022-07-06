@@ -155,6 +155,7 @@ static esp_err_t BMA220_getAcc(uint8_t direction, int8_t *acc_value)
 // main execution loop
 void task_bme280_bma220()
 {
+
     struct bme280_t bme280 = {
         .bus_write = BME280_I2C_bus_write,
         .bus_read = BME280_I2C_bus_read,
@@ -183,33 +184,44 @@ void task_bme280_bma220()
     com_rslt += bme280_set_power_mode(BME280_NORMAL_MODE);
     if (com_rslt == SUCCESS)
     {
-
-        com_rslt = bme280_read_uncomp_pressure_temperature_humidity(
-            &v_uncomp_pressure_s32, &v_uncomp_temperature_s32, &v_uncomp_humidity_s32);
-
-        if (com_rslt == SUCCESS)
+        int loop_cnt = 0;
+        while (loop_cnt < 10)
         {
-            // update
-            BMA220_getAcc(BMA220_SENSOR_GETX, &x_val);
-            BMA220_getAcc(BMA220_SENSOR_GETY, &y_val);
-            BMA220_getAcc(BMA220_SENSOR_GETZ, &z_val);
+            vTaskDelay(500 / portTICK_PERIOD_MS);
+            loop_cnt++;
+            com_rslt = bme280_read_uncomp_pressure_temperature_humidity(
+                &v_uncomp_pressure_s32, &v_uncomp_temperature_s32, &v_uncomp_humidity_s32);
 
-            // ESP_LOGI(TAG_BME280, "%d x / %d y / % z",x_val,y_val,z_val);
+            if (com_rslt == SUCCESS)
+            {
+                // update
+                BMA220_getAcc(BMA220_SENSOR_GETX, &x_val);
+                BMA220_getAcc(BMA220_SENSOR_GETY, &y_val);
+                BMA220_getAcc(BMA220_SENSOR_GETZ, &z_val);
 
-            ESP_LOGI("combined sensors", "%.2f degC / %.3f hPa / %.3f / %d x / %d y / %d z %%",
-                     bme280_compensate_temperature_double(v_uncomp_temperature_s32),
-                     bme280_compensate_pressure_double(v_uncomp_pressure_s32) / 100, // Pa -> hPa
-                     bme280_compensate_humidity_double(v_uncomp_humidity_s32), x_val, y_val, z_val);
-        }
-        else
-        {
-            ESP_LOGE(TAG_BME280, "measure error. code: %d", com_rslt);
+                // ESP_LOGI(TAG_BME280, "%d x / %d y / % z",x_val,y_val,z_val);
+
+                ESP_LOGI("combined sensors", "%.2f degC / %.3f hPa / %.3f / %d x / %d y / %d z %%",
+                         bme280_compensate_temperature_double(v_uncomp_temperature_s32),
+                         bme280_compensate_pressure_double(v_uncomp_pressure_s32) / 100, // Pa -> hPa
+                         bme280_compensate_humidity_double(v_uncomp_humidity_s32), x_val, y_val, z_val);
+            }
+            else
+            {
+                ESP_LOGE(TAG_BME280, "measure error. code: %d", com_rslt);
+            }
         }
     }
     else
     {
         ESP_LOGE(TAG_BME280, "init or setting error. code: %d", com_rslt);
     }
+
+    ESP_LOGI("INFO:", "Setting BME280 to sleep!");
+    s32 sleep_status;
+    sleep_status = bme280_set_power_mode(BME280_SLEEP_MODE);
+    if (sleep_status == SUCCESS)
+        ESP_LOGI("INFO:", "BME280 Sleep Successful!");
 }
 
 void task_sound()
@@ -229,13 +241,12 @@ void task_sound()
 void app_main(void)
 {
     ESP_ERROR_CHECK(i2c_master_init());
+    ESP_ERROR_CHECK(init_BMA220());
     ESP_LOGI(TAG, "I2C initialized successfully");
     ESP_LOGI("INFO:", "Just Woke Up!");
     esp_sleep_enable_timer_wakeup(5e6);
     task_sound();
     task_bme280_bma220();
-
-    ESP_ERROR_CHECK(init_BMA220());
 
     esp_deep_sleep_start();
 }
