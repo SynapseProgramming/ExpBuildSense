@@ -152,9 +152,8 @@ static esp_err_t BMA220_getAcc(uint8_t direction, int8_t *acc_value)
 }
 
 // function to set the BMA220 accelerometer sensor to suspend mode
-// returns true if BMA220 is in sleep mode
+// returns true if BMA220 is currently placed in sleep mode after this function call
 // return false otherwise
-// bool RTC_DATA_ATTR bma220_suspend_status = false;
 static bool suspend_BMA220()
 {
 
@@ -226,15 +225,6 @@ void task_bme280_bma220()
     com_rslt += bme280_set_power_mode(BME280_NORMAL_MODE);
     if (com_rslt == SUCCESS)
     {
-        // ESP_LOGI("SUSPEND STATUS:", "%d", bma220_suspend_status);
-
-        // // only run this after the first loop
-        // if (bma220_suspend_status == true)
-        // {
-        //     suspend_BMA220();
-        //     bma220_suspend_status = true;
-        //     ESP_LOGI("BMA220:", "Waking from suspend mode!");
-        // }
 
         wake_BMA220();
         int loop_cnt = 0;
@@ -276,7 +266,6 @@ void task_bme280_bma220()
     sleep_status = bme280_set_power_mode(BME280_SLEEP_MODE);
     if (sleep_status == SUCCESS)
         ESP_LOGI("INFO:", "BME280 Sleep Successful!");
-
     sleep_BMA220();
     ESP_LOGI("BMA220:", "Set to suspend mode!");
 }
@@ -294,17 +283,6 @@ void task_sound()
     uint32_t voltage = esp_adc_cal_raw_to_voltage(val, &characteristics);
     ESP_LOGI("current", "ADC in mV %d", voltage);
 }
-
-// void RTC_IRAM_ATTR esp_wake_deep_sleep(void)
-// {
-//     esp_default_wake_deep_sleep();
-//     // Add additional functionality here
-//     // wake up the accelerometer sensor
-//     if (suspend_BMA220() == false)
-//     {
-//         ESP_LOGI("BMA220:", "Woke up from suspend mode!");
-//     }
-// }
 
 void app_main(void)
 {
