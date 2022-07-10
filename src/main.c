@@ -11,7 +11,6 @@
 #include "sdkconfig.h"
 #include "driver/i2c.h"
 #include "bme280.h"
-
 static const char *TAG = "i2c-simple-example";
 
 #define I2C_MASTER_SCL_IO 26        /*!< GPIO number used for I2C master clock */
@@ -152,6 +151,49 @@ static esp_err_t BMA220_getAcc(uint8_t direction, int8_t *acc_value)
     return err;
 }
 
+// function to set the BMA220 accelerometer sensor to suspend mode
+// returns true if BMA220 is in sleep mode
+// return false otherwise
+// bool RTC_DATA_ATTR bma220_suspend_status = false;
+static bool suspend_BMA220()
+{
+
+    uint8_t suspend_command = 0x30;
+    uint8_t suspend_status = 0;
+    i2c_master_write_read_device(I2C_MASTER_NUM, BMA220_SENSOR_ADDR, &suspend_command, 1, &suspend_status, 1, I2C_MASTER_TIMEOUT_MS / portTICK_PERIOD_MS);
+    if (suspend_status == 0xFF)
+    {
+        return false;
+    }
+    else
+    {
+        return true;
+    }
+}
+// helper function which ensure that the bma220 is awake
+static void wake_BMA220()
+{
+    bool status = suspend_BMA220();
+    if (status == true)
+    {
+        // sensor is currently sleeping. wake it up!
+        suspend_BMA220();
+    }
+    // otherwise, the sensor is currently awake!
+}
+
+// helper function which ensure that the bma220 is alseep
+static void sleep_BMA220()
+{
+    bool status = suspend_BMA220();
+    if (status == false)
+    {
+        // sensor is sleeping! wake it up!
+        suspend_BMA220();
+    }
+    // otherwise, the sensor is currently asleep!
+}
+
 // main execution loop
 void task_bme280_bma220()
 {
@@ -184,6 +226,17 @@ void task_bme280_bma220()
     com_rslt += bme280_set_power_mode(BME280_NORMAL_MODE);
     if (com_rslt == SUCCESS)
     {
+        // ESP_LOGI("SUSPEND STATUS:", "%d", bma220_suspend_status);
+
+        // // only run this after the first loop
+        // if (bma220_suspend_status == true)
+        // {
+        //     suspend_BMA220();
+        //     bma220_suspend_status = true;
+        //     ESP_LOGI("BMA220:", "Waking from suspend mode!");
+        // }
+
+        wake_BMA220();
         int loop_cnt = 0;
         while (loop_cnt < 10)
         {
@@ -217,11 +270,15 @@ void task_bme280_bma220()
         ESP_LOGE(TAG_BME280, "init or setting error. code: %d", com_rslt);
     }
 
+    // set both sensors to sleep
     ESP_LOGI("INFO:", "Setting BME280 to sleep!");
     s32 sleep_status;
     sleep_status = bme280_set_power_mode(BME280_SLEEP_MODE);
     if (sleep_status == SUCCESS)
         ESP_LOGI("INFO:", "BME280 Sleep Successful!");
+
+    sleep_BMA220();
+    ESP_LOGI("BMA220:", "Set to suspend mode!");
 }
 
 void task_sound()
@@ -238,15 +295,26 @@ void task_sound()
     ESP_LOGI("current", "ADC in mV %d", voltage);
 }
 
+// void RTC_IRAM_ATTR esp_wake_deep_sleep(void)
+// {
+//     esp_default_wake_deep_sleep();
+//     // Add additional functionality here
+//     // wake up the accelerometer sensor
+//     if (suspend_BMA220() == false)
+//     {
+//         ESP_LOGI("BMA220:", "Woke up from suspend mode!");
+//     }
+// }
+
 void app_main(void)
 {
     ESP_ERROR_CHECK(i2c_master_init());
     ESP_ERROR_CHECK(init_BMA220());
     ESP_LOGI(TAG, "I2C initialized successfully");
     ESP_LOGI("INFO:", "Just Woke Up!");
+
     esp_sleep_enable_timer_wakeup(5e6);
     task_sound();
     task_bme280_bma220();
-
     esp_deep_sleep_start();
 }
