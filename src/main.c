@@ -188,7 +188,7 @@ static void prov_complete(uint16_t net_idx, uint16_t addr, uint8_t flags, uint32
     net_buf_simple_add_u8(&sensor_data_1, outdoor_temp);
 }
 
-
+// function which is called when the sensor node is being provisioned with the server
 static void example_ble_mesh_provisioning_cb(esp_ble_mesh_prov_cb_event_t event,
                                              esp_ble_mesh_prov_cb_param_t *param)
 {
@@ -224,6 +224,8 @@ static void example_ble_mesh_provisioning_cb(esp_ble_mesh_prov_cb_event_t event,
     }
 }
 
+
+// function which is called when the server callback function is called
 static void example_ble_mesh_config_server_cb(esp_ble_mesh_cfg_server_cb_event_t event,
                                               esp_ble_mesh_cfg_server_cb_param_t *param)
 {
@@ -271,65 +273,12 @@ struct example_sensor_descriptor
 } __attribute__((packed));
 
 
-static void example_ble_mesh_send_sensor_cadence_status(esp_ble_mesh_sensor_server_cb_param_t *param)
-{
-    esp_err_t err;
-
-    /* Sensor Cadence state is not supported currently. */
-    err = esp_ble_mesh_server_model_send_msg(param->model, &param->ctx,
-                                             ESP_BLE_MESH_MODEL_OP_SENSOR_CADENCE_STATUS,
-                                             ESP_BLE_MESH_SENSOR_PROPERTY_ID_LEN,
-                                             (uint8_t *)&param->value.get.sensor_cadence.property_id);
-    if (err != ESP_OK)
-    {
-        ESP_LOGE(TAG, "Failed to send Sensor Cadence Status");
-    }
-}
-
-static void example_ble_mesh_send_sensor_settings_status(esp_ble_mesh_sensor_server_cb_param_t *param)
-{
-    esp_err_t err;
-
-    /* Sensor Setting state is not supported currently. */
-    err = esp_ble_mesh_server_model_send_msg(param->model, &param->ctx,
-                                             ESP_BLE_MESH_MODEL_OP_SENSOR_SETTINGS_STATUS,
-                                             ESP_BLE_MESH_SENSOR_PROPERTY_ID_LEN,
-                                             (uint8_t *)&param->value.get.sensor_settings.property_id);
-    if (err != ESP_OK)
-    {
-        ESP_LOGE(TAG, "Failed to send Sensor Settings Status");
-    }
-}
 
 struct example_sensor_setting
 {
     uint16_t sensor_prop_id;
     uint16_t sensor_setting_prop_id;
 } __attribute__((packed));
-
-static void example_ble_mesh_send_sensor_setting_status(esp_ble_mesh_sensor_server_cb_param_t *param)
-{
-    struct example_sensor_setting setting = {0};
-    esp_err_t err;
-
-    /* Mesh Model Spec:
-     * If the message is sent as a response to the Sensor Setting Get message or
-     * a Sensor Setting Set message with an unknown Sensor Property ID field or
-     * an unknown Sensor Setting Property ID field, the Sensor Setting Access
-     * field and the Sensor Setting Raw field shall be omitted.
-     */
-
-    setting.sensor_prop_id = param->value.get.sensor_setting.property_id;
-    setting.sensor_setting_prop_id = param->value.get.sensor_setting.setting_property_id;
-
-    err = esp_ble_mesh_server_model_send_msg(param->model, &param->ctx,
-                                             ESP_BLE_MESH_MODEL_OP_SENSOR_SETTING_STATUS,
-                                             sizeof(setting), (uint8_t *)&setting);
-    if (err != ESP_OK)
-    {
-        ESP_LOGE(TAG, "Failed to send Sensor Setting Status");
-    }
-}
 
 static uint16_t example_ble_mesh_get_sensor_data(esp_ble_mesh_sensor_state_t *state, uint8_t *data)
 {
@@ -371,6 +320,7 @@ static uint16_t example_ble_mesh_get_sensor_data(esp_ble_mesh_sensor_state_t *st
     return (mpid_len + data_len);
 }
 
+// main function which would send over the sensor data to the node
 static void example_ble_mesh_send_sensor_status(esp_ble_mesh_sensor_server_cb_param_t *param)
 {
     uint8_t *status = NULL;
@@ -521,18 +471,6 @@ static void example_ble_mesh_sensor_server_cb(esp_ble_mesh_sensor_server_cb_even
     case ESP_BLE_MESH_SENSOR_SERVER_RECV_GET_MSG_EVT:
         switch (param->ctx.recv_op)
         {
-        case ESP_BLE_MESH_MODEL_OP_SENSOR_CADENCE_GET:
-            ESP_LOGI(TAG, "ESP_BLE_MESH_MODEL_OP_SENSOR_CADENCE_GET");
-            example_ble_mesh_send_sensor_cadence_status(param);
-            break;
-        case ESP_BLE_MESH_MODEL_OP_SENSOR_SETTINGS_GET:
-            ESP_LOGI(TAG, "ESP_BLE_MESH_MODEL_OP_SENSOR_SETTINGS_GET");
-            example_ble_mesh_send_sensor_settings_status(param);
-            break;
-        case ESP_BLE_MESH_MODEL_OP_SENSOR_SETTING_GET:
-            ESP_LOGI(TAG, "ESP_BLE_MESH_MODEL_OP_SENSOR_SETTINGS_GET");
-            example_ble_mesh_send_sensor_setting_status(param);
-            break;
         case ESP_BLE_MESH_MODEL_OP_SENSOR_GET:
             ESP_LOGI(TAG, "ESP_BLE_MESH_MODEL_OP_SENSOR_GET");
             example_ble_mesh_send_sensor_status(param);
@@ -553,16 +491,8 @@ static void example_ble_mesh_sensor_server_cb(esp_ble_mesh_sensor_server_cb_even
     case ESP_BLE_MESH_SENSOR_SERVER_RECV_SET_MSG_EVT:
         switch (param->ctx.recv_op)
         {
-        case ESP_BLE_MESH_MODEL_OP_SENSOR_CADENCE_SET:
-            ESP_LOGI(TAG, "ESP_BLE_MESH_MODEL_OP_SENSOR_CADENCE_SET");
-            example_ble_mesh_send_sensor_cadence_status(param);
-            break;
         case ESP_BLE_MESH_MODEL_OP_SENSOR_CADENCE_SET_UNACK:
             ESP_LOGI(TAG, "ESP_BLE_MESH_MODEL_OP_SENSOR_CADENCE_SET_UNACK");
-            break;
-        case ESP_BLE_MESH_MODEL_OP_SENSOR_SETTING_SET:
-            ESP_LOGI(TAG, "ESP_BLE_MESH_MODEL_OP_SENSOR_SETTING_SET");
-            example_ble_mesh_send_sensor_setting_status(param);
             break;
         case ESP_BLE_MESH_MODEL_OP_SENSOR_SETTING_SET_UNACK:
             ESP_LOGI(TAG, "ESP_BLE_MESH_MODEL_OP_SENSOR_SETTING_SET_UNACK");
