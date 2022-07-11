@@ -11,7 +11,7 @@
 #include "sdkconfig.h"
 #include "driver/i2c.h"
 #include "bme280.h"
-//static const char *TAG = "i2c-simple-example";
+// static const char *TAG = "i2c-simple-example";
 
 #define I2C_MASTER_SCL_IO 26        /*!< GPIO number used for I2C master clock */
 #define I2C_MASTER_SDA_IO 27        /*!< GPIO number used for I2C master data  */
@@ -175,6 +175,8 @@ static esp_ble_mesh_prov_t provision = {
     .uuid = dev_uuid,
 };
 
+
+// function is called when provisioning is done. (initial link with the main server)
 static void prov_complete(uint16_t net_idx, uint16_t addr, uint8_t flags, uint32_t iv_index)
 {
     ESP_LOGI(TAG, "net_idx 0x%03x, addr 0x%04x", net_idx, addr);
@@ -185,6 +187,7 @@ static void prov_complete(uint16_t net_idx, uint16_t addr, uint8_t flags, uint32
     net_buf_simple_add_u8(&sensor_data_0, indoor_temp);
     net_buf_simple_add_u8(&sensor_data_1, outdoor_temp);
 }
+
 
 static void example_ble_mesh_provisioning_cb(esp_ble_mesh_prov_cb_event_t event,
                                              esp_ble_mesh_prov_cb_param_t *param)
@@ -267,79 +270,6 @@ struct example_sensor_descriptor
     uint8_t update_interval;
 } __attribute__((packed));
 
-static void example_ble_mesh_send_sensor_descriptor_status(esp_ble_mesh_sensor_server_cb_param_t *param)
-{
-    struct example_sensor_descriptor descriptor = {0};
-    uint8_t *status = NULL;
-    uint16_t length = 0;
-    esp_err_t err;
-    int i;
-
-    status = calloc(1, ARRAY_SIZE(sensor_states) * ESP_BLE_MESH_SENSOR_DESCRIPTOR_LEN);
-    if (!status)
-    {
-        ESP_LOGE(TAG, "No memory for sensor descriptor status!");
-        return;
-    }
-
-    if (param->value.get.sensor_descriptor.op_en == false)
-    {
-        /* Mesh Model Spec:
-         * Upon receiving a Sensor Descriptor Get message with the Property ID field
-         * omitted, the Sensor Server shall respond with a Sensor Descriptor Status
-         * message containing the Sensor Descriptor states for all sensors within the
-         * Sensor Server.
-         */
-        for (i = 0; i < ARRAY_SIZE(sensor_states); i++)
-        {
-            descriptor.sensor_prop_id = sensor_states[i].sensor_property_id;
-            descriptor.pos_tolerance = sensor_states[i].descriptor.positive_tolerance;
-            descriptor.neg_tolerance = sensor_states[i].descriptor.negative_tolerance;
-            descriptor.sample_func = sensor_states[i].descriptor.sampling_function;
-            descriptor.measure_period = sensor_states[i].descriptor.measure_period;
-            descriptor.update_interval = sensor_states[i].descriptor.update_interval;
-            memcpy(status + length, &descriptor, ESP_BLE_MESH_SENSOR_DESCRIPTOR_LEN);
-            length += ESP_BLE_MESH_SENSOR_DESCRIPTOR_LEN;
-        }
-        goto send;
-    }
-
-    for (i = 0; i < ARRAY_SIZE(sensor_states); i++)
-    {
-        if (param->value.get.sensor_descriptor.property_id == sensor_states[i].sensor_property_id)
-        {
-            descriptor.sensor_prop_id = sensor_states[i].sensor_property_id;
-            descriptor.pos_tolerance = sensor_states[i].descriptor.positive_tolerance;
-            descriptor.neg_tolerance = sensor_states[i].descriptor.negative_tolerance;
-            descriptor.sample_func = sensor_states[i].descriptor.sampling_function;
-            descriptor.measure_period = sensor_states[i].descriptor.measure_period;
-            descriptor.update_interval = sensor_states[i].descriptor.update_interval;
-            memcpy(status, &descriptor, ESP_BLE_MESH_SENSOR_DESCRIPTOR_LEN);
-            length = ESP_BLE_MESH_SENSOR_DESCRIPTOR_LEN;
-            goto send;
-        }
-    }
-
-    /* Mesh Model Spec:
-     * When a Sensor Descriptor Get message that identifies a sensor descriptor
-     * property that does not exist on the element, the Descriptor field shall
-     * contain the requested Property ID value and the other fields of the Sensor
-     * Descriptor state shall be omitted.
-     */
-    memcpy(status, &param->value.get.sensor_descriptor.property_id, ESP_BLE_MESH_SENSOR_PROPERTY_ID_LEN);
-    length = ESP_BLE_MESH_SENSOR_PROPERTY_ID_LEN;
-
-send:
-    ESP_LOG_BUFFER_HEX("Sensor Descriptor", status, length);
-
-    err = esp_ble_mesh_server_model_send_msg(param->model, &param->ctx,
-                                             ESP_BLE_MESH_MODEL_OP_SENSOR_DESCRIPTOR_STATUS, length, status);
-    if (err != ESP_OK)
-    {
-        ESP_LOGE(TAG, "Failed to send Sensor Descriptor Status");
-    }
-    free(status);
-}
 
 static void example_ble_mesh_send_sensor_cadence_status(esp_ble_mesh_sensor_server_cb_param_t *param)
 {
@@ -591,10 +521,6 @@ static void example_ble_mesh_sensor_server_cb(esp_ble_mesh_sensor_server_cb_even
     case ESP_BLE_MESH_SENSOR_SERVER_RECV_GET_MSG_EVT:
         switch (param->ctx.recv_op)
         {
-        case ESP_BLE_MESH_MODEL_OP_SENSOR_DESCRIPTOR_GET:
-            ESP_LOGI(TAG, "ESP_BLE_MESH_MODEL_OP_SENSOR_DESCRIPTOR_GET");
-            example_ble_mesh_send_sensor_descriptor_status(param);
-            break;
         case ESP_BLE_MESH_MODEL_OP_SENSOR_CADENCE_GET:
             ESP_LOGI(TAG, "ESP_BLE_MESH_MODEL_OP_SENSOR_CADENCE_GET");
             example_ble_mesh_send_sensor_cadence_status(param);
@@ -651,15 +577,17 @@ static void example_ble_mesh_sensor_server_cb(esp_ble_mesh_sensor_server_cb_even
         break;
     }
 }
-
+// TODO: 1. main function for ble mesh
 static esp_err_t ble_mesh_init(void)
 {
     esp_err_t err;
 
+    // register function callbacks
     esp_ble_mesh_register_prov_callback(example_ble_mesh_provisioning_cb);
     esp_ble_mesh_register_config_server_callback(example_ble_mesh_config_server_cb);
     esp_ble_mesh_register_sensor_server_callback(example_ble_mesh_sensor_server_cb);
 
+    // provision is device uuid.
     err = esp_ble_mesh_init(&provision, &composition);
     if (err != ESP_OK)
     {
