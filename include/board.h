@@ -11,13 +11,6 @@
 #define LED_ON 1
 #define LED_OFF 0
 
-struct _led_state
-{
-    uint8_t current;
-    uint8_t previous;
-    uint8_t pin;
-    char *name;
-};
 
 void board_led_operation(uint8_t pin, uint8_t onoff);
 
