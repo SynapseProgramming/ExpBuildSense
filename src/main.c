@@ -88,13 +88,11 @@ void app_main(void)
     {
 
         BMA220_getAcc(BMA220_SENSOR_GETX, &x_val);
-        ESP_LOGI(TAG, "X value: %d", x_val);
 
         BMA220_getAcc(BMA220_SENSOR_GETY, &y_val);
-        ESP_LOGI(TAG, "Y value: %d", y_val);
 
         BMA220_getAcc(BMA220_SENSOR_GETZ, &z_val);
-        ESP_LOGI(TAG, "Z value: %d", z_val);
+        ESP_LOGI(TAG, "X: %d Y: %d Z: %d", x_val, y_val, z_val);
 
         vTaskDelay(500 / portTICK_PERIOD_MS);
     }
