@@ -69,4 +69,8 @@ void wake_BMA220();
 // helper function which ensures that the bma220 is alseep
 void sleep_BMA220();
 
+// function which would obtain the current environmental values from the 
+// BME280 sensor
+void BME280_get(double *temp, double *pressure, double *humid);
+
 #endif
