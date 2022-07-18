@@ -181,29 +181,17 @@ void BME280_get(double *temp, double *pressure, double *humid)
 
         if (com_rslt == SUCCESS)
         {
-            int loop_cnt = 0;
-            while (loop_cnt < 10)
-            {
-                vTaskDelay(500 / portTICK_PERIOD_MS);
-                loop_cnt++;
-                com_rslt = bme280_read_uncomp_pressure_temperature_humidity(
-                    &v_uncomp_pressure_s32, &v_uncomp_temperature_s32, &v_uncomp_humidity_s32);
 
-                if (com_rslt == SUCCESS)
-                {
+            vTaskDelay(500 / portTICK_PERIOD_MS);
+            com_rslt = bme280_read_uncomp_pressure_temperature_humidity(
+                &v_uncomp_pressure_s32, &v_uncomp_temperature_s32, &v_uncomp_humidity_s32);
 
-                    // ESP_LOGI(TAG_BME280, "%d x / %d y / % z",x_val,y_val,z_val);
+            // ESP_LOGI(TAG_BME280, "%d x / %d y / % z",x_val,y_val,z_val);
 
-                    ESP_LOGI("combined sensors", "%.2f degC / %.3f hPa / %.3f %%",
-                             bme280_compensate_temperature_double(v_uncomp_temperature_s32),
-                             bme280_compensate_pressure_double(v_uncomp_pressure_s32) / 100, // Pa -> hPa
-                             bme280_compensate_humidity_double(v_uncomp_humidity_s32));
-                }
-                else
-                {
-                    ESP_LOGE(TAG_BME280, "measure error. code: %d", com_rslt);
-                }
-            }
+            ESP_LOGI("combined sensors", "%.2f degC / %.3f hPa / %.3f %%",
+                     bme280_compensate_temperature_double(v_uncomp_temperature_s32),
+                     bme280_compensate_pressure_double(v_uncomp_pressure_s32) / 100, // Pa -> hPa
+                     bme280_compensate_humidity_double(v_uncomp_humidity_s32));
 
             // ESP_LOGI(TAG_BME280, "%d x / %d y / % z",x_val,y_val,z_val);
 
