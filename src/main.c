@@ -93,8 +93,8 @@ static esp_ble_mesh_cfg_srv_t config_server = {
     .net_transmit = ESP_BLE_MESH_TRANSMIT(2, 20),
     .relay_retransmit = ESP_BLE_MESH_TRANSMIT(2, 20),
 };
-
-NET_BUF_SIMPLE_DEFINE_STATIC(sensor_data_0, 1);
+//TODO: define a buffer, then add values to it.
+NET_BUF_SIMPLE_DEFINE_STATIC(sensor_data_0, 2);
 NET_BUF_SIMPLE_DEFINE_STATIC(sensor_data_1, 1);
 
 static esp_ble_mesh_sensor_state_t sensor_states[2] = {
@@ -122,7 +122,7 @@ static esp_ble_mesh_sensor_state_t sensor_states[2] = {
         .descriptor.measure_period = SENSOR_MEASURE_PERIOD,
         .descriptor.update_interval = SENSOR_UPDATE_INTERVAL,
         .sensor_data.format = ESP_BLE_MESH_SENSOR_DATA_FORMAT_A,
-        .sensor_data.length = 0, /* 0 represents the length is 1 */
+        .sensor_data.length = 1, /* 0 represents the length is 1 */
         .sensor_data.raw_value = &sensor_data_0,
     },
     [1] = {
@@ -184,7 +184,9 @@ static void prov_complete(uint16_t net_idx, uint16_t addr, uint8_t flags, uint32
     board_led_operation(LED_G, LED_OFF);
 
     /* Initialize the indoor and outdoor temperatures for each sensor.  */
+    //TODO: use net_buf_simple_add to add data to the buffer
     net_buf_simple_add_u8(&sensor_data_0, indoor_temp);
+    net_buf_simple_add_u8(&sensor_data_0, 23);
     net_buf_simple_add_u8(&sensor_data_1, outdoor_temp);
 }
 
@@ -192,7 +194,7 @@ static void prov_complete(uint16_t net_idx, uint16_t addr, uint8_t flags, uint32
 static void example_ble_mesh_provisioning_cb(esp_ble_mesh_prov_cb_event_t event,
                                              esp_ble_mesh_prov_cb_param_t *param)
 {
-    switch (event)
+    switch (event)        
     {
     case ESP_BLE_MESH_PROV_REGISTER_COMP_EVT:
         ESP_LOGI(TAG, "ESP_BLE_MESH_PROV_REGISTER_COMP_EVT, err_code %d", param->prov_register_comp.err_code);
