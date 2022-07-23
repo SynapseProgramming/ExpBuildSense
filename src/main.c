@@ -5,6 +5,7 @@
 #include "nvs_flash.h"
 
 #include "esp_ble_mesh_defs.h"
+#include "esp_bt_device.h"
 #include "esp_ble_mesh_common_api.h"
 #include "esp_ble_mesh_networking_api.h"
 #include "esp_ble_mesh_provisioning_api.h"
@@ -28,6 +29,7 @@
 #define SENSOR_UPDATE_INTERVAL ESP_BLE_MESH_SENSOR_NOT_APPL_UPDATE_INTERVAL
 
 static uint8_t dev_uuid[ESP_BLE_MESH_OCTET16_LEN] = {0x32, 0x10};
+uint8_t bt_address = 0;
 
 static esp_ble_mesh_cfg_srv_t config_server = {
     .relay = ESP_BLE_MESH_RELAY_ENABLED,
@@ -48,7 +50,7 @@ static esp_ble_mesh_cfg_srv_t config_server = {
     .relay_retransmit = ESP_BLE_MESH_TRANSMIT(2, 20),
 };
 
-NET_BUF_SIMPLE_DEFINE(sensor_data_0, 3);
+NET_BUF_SIMPLE_DEFINE(sensor_data_0, 4);
 static esp_ble_mesh_sensor_state_t sensor_states[1] = {
     /* Mesh Model Spec:
      * Multiple instances of the Sensor states may be present within the same model,
@@ -286,7 +288,9 @@ static void example_ble_mesh_send_sensor_status(esp_ble_mesh_sensor_server_cb_pa
     net_buf_simple_add_u8(&sensor_data_0, (uint8_t)x_val);
     net_buf_simple_add_u8(&sensor_data_0, (uint8_t)y_val);
     net_buf_simple_add_u8(&sensor_data_0, (uint8_t)z_val);
-
+    // add bt address  
+    net_buf_simple_add_u8(&sensor_data_0, bt_address);
+    ESP_LOGI("BT_ADDRESS", "%d", bt_address);
 
     sleep_BMA220();
 
@@ -525,6 +529,11 @@ void app_main(void)
     }
 
     ble_mesh_get_dev_uuid(dev_uuid);
+
+    bt_address = *esp_bt_dev_get_address();
+    ESP_LOGI("BT ADDRESS: ", "%d", bt_address);
+
+    sleep_BMA220();
 
     /* Initialize the Bluetooth Mesh Subsystem */
     err = ble_mesh_init();
