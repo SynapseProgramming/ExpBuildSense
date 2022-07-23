@@ -15,8 +15,6 @@
 #include "board.h"
 #include "sensors.h"
 
-#define TAG "EXAMPLE"
-
 #define CID_ESP 0x02E5
 
 /* Sensor Property ID */
@@ -123,6 +121,11 @@ static void prov_complete(uint16_t net_idx, uint16_t addr, uint8_t flags, uint32
     ESP_LOGI(TAG, "net_idx 0x%03x, addr 0x%04x", net_idx, addr);
     ESP_LOGI(TAG, "flags 0x%02x, iv_index 0x%08x", flags, iv_index);
     board_led_operation(LED_G, LED_OFF);
+
+    // init the sensors
+    ESP_ERROR_CHECK(i2c_master_init());
+    ESP_ERROR_CHECK(init_BMA220());
+    ESP_LOGI("INFO:", "I2C initialized successfully");
 }
 
 // function which is called when the sensor node is being provisioned with the server
@@ -254,9 +257,6 @@ static uint16_t example_ble_mesh_get_sensor_data(esp_ble_mesh_sensor_state_t *st
     return (mpid_len + data_len);
 }
 
-uint8_t x = 0;
-uint8_t y = 0;
-uint8_t z = 0;
 // main function which would send over the sensor data to the node
 static void example_ble_mesh_send_sensor_status(esp_ble_mesh_sensor_server_cb_param_t *param)
 {
@@ -266,21 +266,29 @@ static void example_ble_mesh_send_sensor_status(esp_ble_mesh_sensor_server_cb_pa
     uint32_t mpid = 0;
     esp_err_t err;
     int i;
-    x += 1;
-    y += 1;
-    z += 1;
 
-    if (x >= 200)
-    {
-        x = 0;
-        y = 0;
-        z = 0;
-    }
+    int8_t x_val = 0;
+    int8_t y_val = 0;
+    int8_t z_val = 0;
+
+    wake_BMA220();
+
+    // update
+    BMA220_getAcc(BMA220_SENSOR_GETX, &x_val);
+    BMA220_getAcc(BMA220_SENSOR_GETY, &y_val);
+    BMA220_getAcc(BMA220_SENSOR_GETZ, &z_val);
+
+    ESP_LOGI("BMA220", "x value: %d", x_val);
+    ESP_LOGI("BMA220", "y value: %d", y_val);
+    ESP_LOGI("BMA220", "z value: %d", z_val);
 
     // TODO: use net_buf_simple_add to add data to the buffer
-    net_buf_simple_add_u8(&sensor_data_0, x);
-    net_buf_simple_add_u8(&sensor_data_0, y);
-    net_buf_simple_add_u8(&sensor_data_0, z);
+    net_buf_simple_add_u8(&sensor_data_0, (uint8_t)x_val);
+    net_buf_simple_add_u8(&sensor_data_0, (uint8_t)y_val);
+    net_buf_simple_add_u8(&sensor_data_0, (uint8_t)z_val);
+
+
+    sleep_BMA220();
 
     /*
      * Sensor Data state from Mesh Model Spec
