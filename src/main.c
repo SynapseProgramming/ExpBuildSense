@@ -13,7 +13,6 @@
 #include "esp_ble_mesh_sensor_model_api.h"
 
 #include "ble_mesh_example_init.h"
-#include "board.h"
 #include "sensors.h"
 
 #define CID_ESP 0x02E5
@@ -122,7 +121,6 @@ static void prov_complete(uint16_t net_idx, uint16_t addr, uint8_t flags, uint32
 {
     ESP_LOGI(TAG, "net_idx 0x%03x, addr 0x%04x", net_idx, addr);
     ESP_LOGI(TAG, "flags 0x%02x, iv_index 0x%08x", flags, iv_index);
-    board_led_operation(LED_G, LED_OFF);
 
     // init the sensors
     ESP_ERROR_CHECK(i2c_master_init());
@@ -288,7 +286,7 @@ static void example_ble_mesh_send_sensor_status(esp_ble_mesh_sensor_server_cb_pa
     net_buf_simple_add_u8(&sensor_data_0, (uint8_t)x_val);
     net_buf_simple_add_u8(&sensor_data_0, (uint8_t)y_val);
     net_buf_simple_add_u8(&sensor_data_0, (uint8_t)z_val);
-    // add bt address  
+    // add bt address
     net_buf_simple_add_u8(&sensor_data_0, bt_address);
     ESP_LOGI("BT_ADDRESS", "%d", bt_address);
 
@@ -498,8 +496,6 @@ static esp_err_t ble_mesh_init(void)
         return err;
     }
 
-    board_led_operation(LED_G, LED_ON);
-
     ESP_LOGI(TAG, "BLE Mesh sensor server initialized");
 
     return ESP_OK;
@@ -518,8 +514,6 @@ void app_main(void)
         err = nvs_flash_init();
     }
     ESP_ERROR_CHECK(err);
-
-    board_init();
 
     err = bluetooth_init();
     if (err)
