@@ -59,7 +59,6 @@
 #define SENSOR_PROPERTY_ID_0 0x0056 /* Present Indoor Ambient Temperature */
 #define SENSOR_PROPERTY_ID_1 0x005B /* Present Outdoor Ambient Temperature */
 
-
 #define SENSOR_POSITIVE_TOLERANCE ESP_BLE_MESH_SENSOR_UNSPECIFIED_POS_TOLERANCE
 #define SENSOR_NEGATIVE_TOLERANCE ESP_BLE_MESH_SENSOR_UNSPECIFIED_NEG_TOLERANCE
 #define SENSOR_SAMPLE_FUNCTION ESP_BLE_MESH_SAMPLE_FUNC_UNSPECIFIED
@@ -86,9 +85,8 @@ static esp_ble_mesh_cfg_srv_t config_server = {
     .net_transmit = ESP_BLE_MESH_TRANSMIT(2, 20),
     .relay_retransmit = ESP_BLE_MESH_TRANSMIT(2, 20),
 };
-// TODO: define a buffer, then add values to it.
-NET_BUF_SIMPLE_DEFINE_STATIC(sensor_data_0, 3);
 
+NET_BUF_SIMPLE_DEFINE(sensor_data_0, 3);
 static esp_ble_mesh_sensor_state_t sensor_states[1] = {
     /* Mesh Model Spec:
      * Multiple instances of the Sensor states may be present within the same model,
@@ -161,12 +159,6 @@ static void prov_complete(uint16_t net_idx, uint16_t addr, uint8_t flags, uint32
     ESP_LOGI(TAG, "net_idx 0x%03x, addr 0x%04x", net_idx, addr);
     ESP_LOGI(TAG, "flags 0x%02x, iv_index 0x%08x", flags, iv_index);
     board_led_operation(LED_G, LED_OFF);
-
-    /* Initialize the indoor and outdoor temperatures for each sensor.  */
-    // TODO: use net_buf_simple_add to add data to the buffer
-    net_buf_simple_add_u8(&sensor_data_0, 69);
-    net_buf_simple_add_u8(&sensor_data_0, 23);
-    net_buf_simple_add_u8(&sensor_data_0, 56);
 }
 
 // function which is called when the sensor node is being provisioned with the server
@@ -298,6 +290,9 @@ static uint16_t example_ble_mesh_get_sensor_data(esp_ble_mesh_sensor_state_t *st
     return (mpid_len + data_len);
 }
 
+uint8_t x = 0;
+uint8_t y = 0;
+uint8_t z = 0;
 // main function which would send over the sensor data to the node
 static void example_ble_mesh_send_sensor_status(esp_ble_mesh_sensor_server_cb_param_t *param)
 {
@@ -307,8 +302,23 @@ static void example_ble_mesh_send_sensor_status(esp_ble_mesh_sensor_server_cb_pa
     uint32_t mpid = 0;
     esp_err_t err;
     int i;
+    x += 1;
+    y += 1;
+    z += 1;
 
-    /**
+    if (x >= 200)
+    {
+        x = 0;
+        y = 0;
+        z = 0;
+    }
+
+    // TODO: use net_buf_simple_add to add data to the buffer
+    net_buf_simple_add_u8(&sensor_data_0, x);
+    net_buf_simple_add_u8(&sensor_data_0, y);
+    net_buf_simple_add_u8(&sensor_data_0, z);
+
+    /*
      * Sensor Data state from Mesh Model Spec
      * |--------Field--------|-Size (octets)-|------------------------Notes-------------------------|
      * |----Property ID 1----|-------2-------|--ID of the 1st device property of the sensor---------|
@@ -393,6 +403,8 @@ send:
     {
         ESP_LOGE(TAG, "Failed to send Sensor Status");
     }
+    // free buffer
+    net_buf_simple_reset(&sensor_data_0);
     free(status);
 }
 
