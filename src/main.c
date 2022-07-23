@@ -48,7 +48,7 @@
 #include "esp_ble_mesh_config_model_api.h"
 #include "esp_ble_mesh_sensor_model_api.h"
 
-#include "ble_mesh_example_init.h"  
+#include "ble_mesh_example_init.h"
 #include "board.h"
 
 #define TAG "EXAMPLE"
@@ -59,13 +59,6 @@
 #define SENSOR_PROPERTY_ID_0 0x0056 /* Present Indoor Ambient Temperature */
 #define SENSOR_PROPERTY_ID_1 0x005B /* Present Outdoor Ambient Temperature */
 
-/* The characteristic of the two device properties is "Temperature 8", which is
- * used to represent a measure of temperature with a unit of 0.5 degree Celsius.
- * Minimum value: -64.0, maximum value: 63.5.
- * A value of 0xFF represents 'value is not known'.
- */
-static int8_t indoor_temp = 40;  /* Indoor temperature is 20 Degrees Celsius */
-static int8_t outdoor_temp = 60; /* Outdoor temperature is 30 Degrees Celsius */
 
 #define SENSOR_POSITIVE_TOLERANCE ESP_BLE_MESH_SENSOR_UNSPECIFIED_POS_TOLERANCE
 #define SENSOR_NEGATIVE_TOLERANCE ESP_BLE_MESH_SENSOR_UNSPECIFIED_NEG_TOLERANCE
@@ -93,11 +86,10 @@ static esp_ble_mesh_cfg_srv_t config_server = {
     .net_transmit = ESP_BLE_MESH_TRANSMIT(2, 20),
     .relay_retransmit = ESP_BLE_MESH_TRANSMIT(2, 20),
 };
-//TODO: define a buffer, then add values to it.
-NET_BUF_SIMPLE_DEFINE_STATIC(sensor_data_0, 2);
-NET_BUF_SIMPLE_DEFINE_STATIC(sensor_data_1, 1);
+// TODO: define a buffer, then add values to it.
+NET_BUF_SIMPLE_DEFINE_STATIC(sensor_data_0, 3);
 
-static esp_ble_mesh_sensor_state_t sensor_states[2] = {
+static esp_ble_mesh_sensor_state_t sensor_states[1] = {
     /* Mesh Model Spec:
      * Multiple instances of the Sensor states may be present within the same model,
      * provided that each instance has a unique value of the Sensor Property ID to
@@ -122,21 +114,9 @@ static esp_ble_mesh_sensor_state_t sensor_states[2] = {
         .descriptor.measure_period = SENSOR_MEASURE_PERIOD,
         .descriptor.update_interval = SENSOR_UPDATE_INTERVAL,
         .sensor_data.format = ESP_BLE_MESH_SENSOR_DATA_FORMAT_A,
-        .sensor_data.length = 1, /* 0 represents the length is 1 */
+        .sensor_data.length = 2, /* 2 represents the length is 3 */
         .sensor_data.raw_value = &sensor_data_0,
-    },
-    [1] = {
-        .sensor_property_id = SENSOR_PROPERTY_ID_1,
-        .descriptor.positive_tolerance = SENSOR_POSITIVE_TOLERANCE,
-        .descriptor.negative_tolerance = SENSOR_NEGATIVE_TOLERANCE,
-        .descriptor.sampling_function = SENSOR_SAMPLE_FUNCTION,
-        .descriptor.measure_period = SENSOR_MEASURE_PERIOD,
-        .descriptor.update_interval = SENSOR_UPDATE_INTERVAL,
-        .sensor_data.format = ESP_BLE_MESH_SENSOR_DATA_FORMAT_A,
-        .sensor_data.length = 0, /* 0 represents the length is 1 */
-        .sensor_data.raw_value = &sensor_data_1,
-    },
-};
+    }};
 
 /* 20 octets is large enough to hold two Sensor Descriptor state values. */
 ESP_BLE_MESH_MODEL_PUB_DEFINE(sensor_pub, 20, ROLE_NODE);
@@ -175,7 +155,6 @@ static esp_ble_mesh_prov_t provision = {
     .uuid = dev_uuid,
 };
 
-
 // function is called when provisioning is done. (initial link with the main server)
 static void prov_complete(uint16_t net_idx, uint16_t addr, uint8_t flags, uint32_t iv_index)
 {
@@ -184,17 +163,17 @@ static void prov_complete(uint16_t net_idx, uint16_t addr, uint8_t flags, uint32
     board_led_operation(LED_G, LED_OFF);
 
     /* Initialize the indoor and outdoor temperatures for each sensor.  */
-    //TODO: use net_buf_simple_add to add data to the buffer
-    net_buf_simple_add_u8(&sensor_data_0, indoor_temp);
+    // TODO: use net_buf_simple_add to add data to the buffer
+    net_buf_simple_add_u8(&sensor_data_0, 69);
     net_buf_simple_add_u8(&sensor_data_0, 23);
-    net_buf_simple_add_u8(&sensor_data_1, outdoor_temp);
+    net_buf_simple_add_u8(&sensor_data_0, 56);
 }
 
 // function which is called when the sensor node is being provisioned with the server
 static void example_ble_mesh_provisioning_cb(esp_ble_mesh_prov_cb_event_t event,
                                              esp_ble_mesh_prov_cb_param_t *param)
 {
-    switch (event)        
+    switch (event)
     {
     case ESP_BLE_MESH_PROV_REGISTER_COMP_EVT:
         ESP_LOGI(TAG, "ESP_BLE_MESH_PROV_REGISTER_COMP_EVT, err_code %d", param->prov_register_comp.err_code);
@@ -225,7 +204,6 @@ static void example_ble_mesh_provisioning_cb(esp_ble_mesh_prov_cb_event_t event,
         break;
     }
 }
-
 
 // function which is called when the server callback function is called
 static void example_ble_mesh_config_server_cb(esp_ble_mesh_cfg_server_cb_event_t event,
@@ -273,8 +251,6 @@ struct example_sensor_descriptor
     uint8_t measure_period;
     uint8_t update_interval;
 } __attribute__((packed));
-
-
 
 struct example_sensor_setting
 {
