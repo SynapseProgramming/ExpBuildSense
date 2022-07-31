@@ -20,13 +20,13 @@
 #include "esp_ble_mesh_config_model_api.h"
 #include "esp_ble_mesh_generic_model_api.h"
 #include "esp_ble_mesh_local_data_operation_api.h"
+#include "esp_ble_mesh_sensor_model_api.h"
 
 #include "ble_mesh_example_init.h"
 
 #define TAG "EXAMPLE"
 
 #define CID_ESP 0x02E5
-
 
 static uint8_t dev_uuid[16] = {0xdd, 0xdd};
 
@@ -105,6 +105,8 @@ static esp_ble_mesh_prov_t provision = {
     .output_actions = 0,
 #endif
 };
+
+uint16_t publish_address;
 
 static void prov_complete(uint16_t net_idx, uint16_t addr, uint8_t flags, uint32_t iv_index)
 {
@@ -288,6 +290,12 @@ static void example_ble_mesh_config_server_cb(esp_ble_mesh_cfg_server_cb_event_t
                      param->value.state_change.mod_sub_add.company_id,
                      param->value.state_change.mod_sub_add.model_id);
             break;
+
+        case ESP_BLE_MESH_MODEL_OP_MODEL_PUB_SET:
+            ESP_LOGI(TAG, "ESP_BLE_MESH_MODEL_OP_MODEL_PUB_SET");
+            publish_address = param->value.state_change.mod_pub_set.pub_addr;
+            break;
+
         default:
             break;
         }
