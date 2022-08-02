@@ -369,7 +369,9 @@ static void example_ble_mesh_send_sensor_status(esp_ble_mesh_sensor_server_cb_pa
     length = ESP_BLE_MESH_SENSOR_DATA_FORMAT_B_MPID_LEN;
 
 send:
-    ESP_LOG_BUFFER_HEX("Sensor Data", status, length);
+    // ESP_LOG_BUFFER_HEX("Sensor Data", status, length);
+        
+    ESP_LOG_BUFFER_HEX("PURE Sensor Data", sensor_data_0.data, 4);
 
     err = esp_ble_mesh_server_model_send_msg(param->model, &param->ctx,
                                              ESP_BLE_MESH_MODEL_OP_SENSOR_STATUS, length, status);
