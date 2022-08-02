@@ -30,6 +30,10 @@
 
 static uint8_t dev_uuid[16] = {0xdd, 0xdd};
 
+NET_BUF_SIMPLE_DEFINE(acc_data, 3);
+ESP_BLE_MESH_MODEL_PUB_DEFINE(acc_pub, 3, ROLE_NODE);
+esp_ble_mesh_model_t *global_mesh_model;
+
 static esp_ble_mesh_cfg_srv_t config_server = {
     .relay = ESP_BLE_MESH_RELAY_DISABLED,
     .beacon = ESP_BLE_MESH_BEACON_ENABLED,
@@ -107,6 +111,8 @@ static esp_ble_mesh_prov_t provision = {
 };
 
 uint16_t publish_address;
+
+void task_pub(void *ignore);
 
 static void prov_complete(uint16_t net_idx, uint16_t addr, uint8_t flags, uint32_t iv_index)
 {
@@ -263,6 +269,7 @@ static void example_ble_mesh_generic_server_cb(esp_ble_mesh_generic_server_cb_ev
 static void example_ble_mesh_config_server_cb(esp_ble_mesh_cfg_server_cb_event_t event,
                                               esp_ble_mesh_cfg_server_cb_param_t *param)
 {
+
     if (event == ESP_BLE_MESH_CFG_SERVER_STATE_CHANGE_EVT)
     {
         switch (param->ctx.recv_op)
@@ -294,6 +301,10 @@ static void example_ble_mesh_config_server_cb(esp_ble_mesh_cfg_server_cb_event_t
         case ESP_BLE_MESH_MODEL_OP_MODEL_PUB_SET:
             ESP_LOGI(TAG, "ESP_BLE_MESH_MODEL_OP_MODEL_PUB_SET");
             publish_address = param->value.state_change.mod_pub_set.pub_addr;
+            // start task
+            param->model->pub = &acc_pub;
+            global_mesh_model = param->model;
+            xTaskCreate(&task_pub, "task_get", 2048, NULL, 7, NULL);
             break;
 
         default:
@@ -327,6 +338,36 @@ static esp_err_t ble_mesh_init(void)
     ESP_LOGI(TAG, "BLE Mesh Node initialized");
 
     return err;
+}
+
+void task_pub(void *ignore)
+{
+
+    // global_mesh_model->pub->publish_addr = publish_address;
+    //  global_mesh_model->pub->msg = &acc_data;
+    
+
+    while (1)
+    {
+        ESP_LOGI("GET DATA", "WOW");
+        net_buf_simple_add_u8(&acc_data, 1);
+        net_buf_simple_add_u8(&acc_data, 2);
+        net_buf_simple_add_u8(&acc_data, 3);
+        esp_err_t ok;
+
+        ESP_LOGI(TAG, "Publish address %d", publish_address);
+
+        ok = esp_ble_mesh_model_publish(global_mesh_model, ESP_BLE_MESH_MODEL_OP_GEN_ONOFF_STATUS,
+                                        3, acc_data.data, ROLE_NODE);
+        if (ok)
+        {
+            ESP_LOGE(TAG, "Failed to publish (err %d)", ok);
+        }
+
+        vTaskDelay(500 / portTICK_PERIOD_MS);
+        net_buf_simple_reset(&acc_data);
+    }
+    vTaskDelete(NULL);
 }
 
 void app_main(void)
