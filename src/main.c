@@ -370,9 +370,12 @@ static void example_ble_mesh_send_sensor_status(esp_ble_mesh_sensor_server_cb_pa
 
 send:
     // ESP_LOG_BUFFER_HEX("Sensor Data", status, length);
-        
-    ESP_LOG_BUFFER_HEX("PURE Sensor Data", sensor_data_0.data, 4);
 
+    ESP_LOG_BUFFER_HEX("PURE Sensor Data", sensor_data_0.data, 4);
+    if (param->model->pub == NULL)
+    {
+        ESP_LOGI("ERROR", "THERE IS NO PUBLISHER");
+    }
     err = esp_ble_mesh_server_model_send_msg(param->model, &param->ctx,
                                              ESP_BLE_MESH_MODEL_OP_SENSOR_STATUS, length, status);
     if (err != ESP_OK)
