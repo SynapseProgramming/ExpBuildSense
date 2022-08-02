@@ -243,6 +243,10 @@ static void example_ble_mesh_generic_server_cb(esp_ble_mesh_generic_server_cb_ev
         {
             srv = param->model->user_data;
             ESP_LOGI(TAG, "onoff 0x%02x", srv->state.onoff);
+            global_mesh_model = param->model;
+            ESP_LOGI(TAG, "Address: %d", param->model->pub->publish_addr);
+
+                    
             example_handle_gen_onoff_msg(param->model, &param->ctx, NULL);
         }
         break;
@@ -302,9 +306,9 @@ static void example_ble_mesh_config_server_cb(esp_ble_mesh_cfg_server_cb_event_t
             ESP_LOGI(TAG, "ESP_BLE_MESH_MODEL_OP_MODEL_PUB_SET");
             publish_address = param->value.state_change.mod_pub_set.pub_addr;
             // start task
-            param->model->pub = &acc_pub;
-            global_mesh_model = param->model;
-            xTaskCreate(&task_pub, "task_get", 2048, NULL, 7, NULL);
+            // param->model->pub = &acc_pub;
+            global_mesh_model->pub->publish_addr = publish_address; 
+             xTaskCreate(&task_pub, "task_get", 2048, NULL, 7, NULL);
             break;
 
         default:
