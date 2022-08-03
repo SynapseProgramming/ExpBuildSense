@@ -19,7 +19,7 @@
 
 esp_ble_mesh_model_t *global_mesh_model;
 esp_ble_mesh_sensor_server_cb_param_t *global_sensor_param;
-uint16_t publish_address;
+uint16_t publish_address = 49152;
 void task_pub(void *ignore);
 
 /* Sensor Property ID */
@@ -201,10 +201,10 @@ static void example_ble_mesh_config_server_cb(esp_ble_mesh_cfg_server_cb_event_t
             break;
         case ESP_BLE_MESH_MODEL_OP_MODEL_PUB_SET:
             ESP_LOGI(TAG, "ESP_BLE_MESH_MODEL_OP_MODEL_PUB_SET");
-            publish_address = param->value.state_change.mod_pub_set.pub_addr;
+            // publish_address = param->value.state_change.mod_pub_set.pub_addr;
             // start task
-            global_mesh_model->pub->publish_addr = publish_address;
-            xTaskCreate(&task_pub, "task_get", 2048, NULL, 7, NULL);
+            // global_mesh_model->pub->publish_addr = publish_address;
+            // xTaskCreate(&task_pub, "task_get", 2048, NULL, 7, NULL);
             break;
         default:
             break;
@@ -443,6 +443,7 @@ static void example_ble_mesh_send_sensor_series_status(esp_ble_mesh_sensor_serve
     }
 }
 
+bool called_before = false;
 static void example_ble_mesh_sensor_server_cb(esp_ble_mesh_sensor_server_cb_event_t event,
                                               esp_ble_mesh_sensor_server_cb_param_t *param)
 {
@@ -456,8 +457,14 @@ static void example_ble_mesh_sensor_server_cb(esp_ble_mesh_sensor_server_cb_even
         {
         case ESP_BLE_MESH_MODEL_OP_SENSOR_GET:
             ESP_LOGI(TAG, "ESP_BLE_MESH_MODEL_OP_SENSOR_GET");
-            global_mesh_model = param->model;
-            global_sensor_param = param;
+            if (called_before == false)
+            {
+                global_mesh_model = param->model;
+                global_sensor_param = param;
+                global_mesh_model->pub->publish_addr = publish_address;
+                xTaskCreate(&task_pub, "task_get", 2048, NULL, 7, NULL);
+                called_before = true;
+            }
             // example_ble_mesh_send_sensor_status(param);
             break;
         case ESP_BLE_MESH_MODEL_OP_SENSOR_COLUMN_GET:
