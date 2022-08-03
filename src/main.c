@@ -17,6 +17,11 @@
 
 #define CID_ESP 0x02E5
 
+esp_ble_mesh_model_t *global_mesh_model;
+esp_ble_mesh_sensor_server_cb_param_t *global_sensor_param;
+uint16_t publish_address;
+void task_pub(void *ignore);
+
 /* Sensor Property ID */
 #define SENSOR_PROPERTY_ID_0 0x0056 /* Present Indoor Ambient Temperature */
 #define SENSOR_PROPERTY_ID_1 0x005B /* Present Outdoor Ambient Temperature */
@@ -127,7 +132,6 @@ static void prov_complete(uint16_t net_idx, uint16_t addr, uint8_t flags, uint32
     ESP_ERROR_CHECK(init_BMA220());
     ESP_LOGI("INFO:", "I2C initialized successfully");
 }
-
 // function which is called when the sensor node is being provisioned with the server
 static void example_ble_mesh_provisioning_cb(esp_ble_mesh_prov_cb_event_t event,
                                              esp_ble_mesh_prov_cb_param_t *param)
@@ -194,6 +198,13 @@ static void example_ble_mesh_config_server_cb(esp_ble_mesh_cfg_server_cb_event_t
                      param->value.state_change.mod_sub_add.sub_addr,
                      param->value.state_change.mod_sub_add.company_id,
                      param->value.state_change.mod_sub_add.model_id);
+            break;
+        case ESP_BLE_MESH_MODEL_OP_MODEL_PUB_SET:
+            ESP_LOGI(TAG, "ESP_BLE_MESH_MODEL_OP_MODEL_PUB_SET");
+            publish_address = param->value.state_change.mod_pub_set.pub_addr;
+            // start task
+            global_mesh_model->pub->publish_addr = publish_address;
+            xTaskCreate(&task_pub, "task_get", 2048, NULL, 7, NULL);
             break;
         default:
             break;
@@ -372,15 +383,18 @@ send:
     // ESP_LOG_BUFFER_HEX("Sensor Data", status, length);
 
     ESP_LOG_BUFFER_HEX("PURE Sensor Data", sensor_data_0.data, 4);
-    if (param->model->pub == NULL)
+    // if (param->model->pub == NULL)
+    // {
+    //     ESP_LOGI("ERROR", "THERE IS NO PUBLISHER");
+    // }
+    esp_err_t ok;
+    ESP_LOGI(TAG, "Publish address %d", publish_address);
+
+    ok = esp_ble_mesh_model_publish(global_mesh_model, ESP_BLE_MESH_MODEL_OP_SENSOR_STATUS,
+                                    length, status, ROLE_NODE);
+    if (ok)
     {
-        ESP_LOGI("ERROR", "THERE IS NO PUBLISHER");
-    }
-    err = esp_ble_mesh_server_model_send_msg(param->model, &param->ctx,
-                                             ESP_BLE_MESH_MODEL_OP_SENSOR_STATUS, length, status);
-    if (err != ESP_OK)
-    {
-        ESP_LOGE(TAG, "Failed to send Sensor Status");
+        ESP_LOGE(TAG, "Failed to publish (err %d)", ok);
     }
     // free buffer
     net_buf_simple_reset(&sensor_data_0);
@@ -442,7 +456,9 @@ static void example_ble_mesh_sensor_server_cb(esp_ble_mesh_sensor_server_cb_even
         {
         case ESP_BLE_MESH_MODEL_OP_SENSOR_GET:
             ESP_LOGI(TAG, "ESP_BLE_MESH_MODEL_OP_SENSOR_GET");
-            example_ble_mesh_send_sensor_status(param);
+            global_mesh_model = param->model;
+            global_sensor_param = param;
+            // example_ble_mesh_send_sensor_status(param);
             break;
         case ESP_BLE_MESH_MODEL_OP_SENSOR_COLUMN_GET:
             ESP_LOGI(TAG, "ESP_BLE_MESH_MODEL_OP_SENSOR_COLUMN_GET");
@@ -504,6 +520,22 @@ static esp_err_t ble_mesh_init(void)
     ESP_LOGI(TAG, "BLE Mesh sensor server initialized");
 
     return ESP_OK;
+}
+
+void task_pub(void *ignore)
+{
+
+    // global_mesh_model->pub->publish_addr = publish_address;
+    //  global_mesh_model->pub->msg = &acc_data;
+
+    while (1)
+    {
+
+        example_ble_mesh_send_sensor_status(global_sensor_param);
+
+        vTaskDelay(500 / portTICK_PERIOD_MS);
+    }
+    vTaskDelete(NULL);
 }
 
 void app_main(void)
