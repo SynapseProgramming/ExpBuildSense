@@ -31,6 +31,7 @@ void task_pub(void *ignore);
 
 static uint8_t dev_uuid[ESP_BLE_MESH_OCTET16_LEN] = {0x32, 0x10};
 uint8_t bt_address = 0;
+int send_count = 0;
 
 static esp_ble_mesh_cfg_srv_t config_server = {
     .relay = ESP_BLE_MESH_RELAY_ENABLED,
@@ -451,6 +452,13 @@ static void example_ble_mesh_custom_model_cb(esp_ble_mesh_model_cb_event_t event
     {
     case ESP_BLE_MESH_MODEL_PUBLISH_COMP_EVT:
         ESP_LOGI("INFO", "DATA SENT!");
+        if (send_count >= 10)
+        {
+            ESP_LOGI("INFO", "SENT ENOUGH DATA! SLEEPING!");
+           // esp_deep_sleep_start();
+           send_count=0;
+           esp_light_sleep_start();
+        }
         break;
     default:
         break;
@@ -494,6 +502,7 @@ void task_pub(void *ignore)
     {
 
         custom_ble_mesh_send_sensor_readings(4);
+        send_count++;
 
         vTaskDelay(500 / portTICK_PERIOD_MS);
     }
@@ -525,6 +534,7 @@ void app_main(void)
 
     bt_address = *esp_bt_dev_get_address();
     ESP_LOGI("BT ADDRESS: ", "%d", bt_address);
+    esp_sleep_enable_timer_wakeup(5e6);
 
     // sleep_BMA220();
 
