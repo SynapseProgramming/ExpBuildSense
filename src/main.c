@@ -273,7 +273,7 @@ static uint16_t example_ble_mesh_get_sensor_data(esp_ble_mesh_sensor_state_t *st
 void custom_ble_mesh_send_sensor_readings(int8_t state)
 {
     // Set the new Motion State
-     net_buf_simple_reset(&sensor_data_0);
+    net_buf_simple_reset(&sensor_data_0);
 
     int8_t x_val = 0;
     int8_t y_val = 0;
@@ -397,7 +397,6 @@ static void example_ble_mesh_send_sensor_series_status(esp_ble_mesh_sensor_serve
     }
 }
 
-bool called_before = false;
 static void example_ble_mesh_sensor_server_cb(esp_ble_mesh_sensor_server_cb_event_t event,
                                               esp_ble_mesh_sensor_server_cb_param_t *param)
 {
@@ -444,6 +443,20 @@ static void example_ble_mesh_sensor_server_cb(esp_ble_mesh_sensor_server_cb_even
         break;
     }
 }
+
+static void example_ble_mesh_custom_model_cb(esp_ble_mesh_model_cb_event_t event,
+                                             esp_ble_mesh_model_cb_param_t *param)
+{
+    switch (event)
+    {
+    case ESP_BLE_MESH_MODEL_PUBLISH_COMP_EVT:
+        ESP_LOGI("INFO", "DATA SENT!");
+        break;
+    default:
+        break;
+    }
+}
+
 // TODO: 1. main function for ble mesh
 static esp_err_t ble_mesh_init(void)
 {
@@ -453,6 +466,7 @@ static esp_err_t ble_mesh_init(void)
     esp_ble_mesh_register_prov_callback(example_ble_mesh_provisioning_cb);
     esp_ble_mesh_register_config_server_callback(example_ble_mesh_config_server_cb);
     esp_ble_mesh_register_sensor_server_callback(example_ble_mesh_sensor_server_cb);
+    esp_ble_mesh_register_custom_model_callback(example_ble_mesh_custom_model_cb);
 
     // provision is device uuid.
     err = esp_ble_mesh_init(&provision, &composition);
