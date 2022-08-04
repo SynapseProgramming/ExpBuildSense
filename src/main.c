@@ -54,7 +54,7 @@ static esp_ble_mesh_cfg_srv_t config_server = {
     .relay_retransmit = ESP_BLE_MESH_TRANSMIT(2, 20),
 };
 
-NET_BUF_SIMPLE_DEFINE(sensor_data_0, 4);
+NET_BUF_SIMPLE_DEFINE(sensor_data_0, 3);
 static esp_ble_mesh_sensor_state_t sensor_states[1] = {
     /* Mesh Model Spec:
      * Multiple instances of the Sensor states may be present within the same model,
@@ -201,10 +201,19 @@ static void example_ble_mesh_config_server_cb(esp_ble_mesh_cfg_server_cb_event_t
             break;
         case ESP_BLE_MESH_MODEL_OP_MODEL_PUB_SET:
             ESP_LOGI(TAG, "ESP_BLE_MESH_MODEL_OP_MODEL_PUB_SET");
-            // publish_address = param->value.state_change.mod_pub_set.pub_addr;
-            // start task
+            ESP_LOGI(TAG, "elem_addr 0x%04x, pub_addr 0x%04x, cid 0x%04x, mod_id 0x%04x",
+                     param->value.state_change.mod_pub_set.element_addr,
+                     param->value.state_change.mod_pub_set.pub_addr,
+                     param->value.state_change.mod_pub_set.company_id,
+                     param->value.state_change.mod_pub_set.model_id);
+
+            // global_mesh_model = param->model;
+            // global_sensor_param = param;
             // global_mesh_model->pub->publish_addr = publish_address;
-            // xTaskCreate(&task_pub, "task_get", 2048, NULL, 7, NULL);
+            sensor_server.model->pub->publish_addr = param->value.state_change.mod_pub_set.pub_addr;
+            // sensor_server .publish_addr= param->value.state_change.mod_pub_set.pub_addr;
+
+            xTaskCreate(&task_pub, "task_get", 2048, NULL, 7, NULL);
             break;
         default:
             break;
@@ -268,8 +277,75 @@ static uint16_t example_ble_mesh_get_sensor_data(esp_ble_mesh_sensor_state_t *st
     return (mpid_len + data_len);
 }
 
+void custom_ble_mesh_send_sensor_readings(int8_t state)
+{
+    // Set the new Motion State
+    net_buf_simple_reset(&sensor_data_0);
+    net_buf_simple_add_u8(&sensor_data_0, state);
+    ESP_LOGI(TAG, "Sensor Reading: %d", state);
+
+    // Prep the data to be sent
+    uint8_t *status = NULL;
+    uint16_t buf_size = 0;
+    uint16_t length = 0;
+    esp_err_t err;
+    int i;
+
+    /**
+     * Sensor Data state from Mesh Model Spec
+     * |--------Field--------|-Size (octets)-|------------------------Notes-------------------------|
+     * |----Property ID 1----|-------2-------|--ID of the 1st device property of the sensor---------|
+     * |-----Raw Value 1-----|----variable---|--Raw Value field defined by the 1st device property--|
+     * |----Property ID 2----|-------2-------|--ID of the 2nd device property of the sensor---------|
+     * |-----Raw Value 2-----|----variable---|--Raw Value field defined by the 2nd device property--|
+     * | ...... |
+     * |----Property ID n----|-------2-------|--ID of the nth device property of the sensor---------|
+     * |-----Raw Value n-----|----variable---|--Raw Value field defined by the nth device property--|
+     */
+    for (i = 0; i < ARRAY_SIZE(sensor_states); i++)
+    {
+        esp_ble_mesh_sensor_state_t *state = &sensor_states[i];
+        if (state->sensor_data.length == ESP_BLE_MESH_SENSOR_DATA_ZERO_LEN)
+        {
+            buf_size += ESP_BLE_MESH_SENSOR_DATA_FORMAT_B_MPID_LEN;
+        }
+        else
+        {
+            /* Use "state->sensor_data.length + 1" because the length of sensor data is zero-based. */
+            if (state->sensor_data.format == ESP_BLE_MESH_SENSOR_DATA_FORMAT_A)
+            {
+                buf_size += ESP_BLE_MESH_SENSOR_DATA_FORMAT_A_MPID_LEN + state->sensor_data.length + 1;
+            }
+            else
+            {
+                buf_size += ESP_BLE_MESH_SENSOR_DATA_FORMAT_B_MPID_LEN + state->sensor_data.length + 1;
+            }
+        }
+    }
+
+    status = calloc(1, buf_size);
+    if (!status)
+    {
+        ESP_LOGE(TAG, "No memory for sensor status!");
+        return;
+    }
+
+    for (i = 0; i < ARRAY_SIZE(sensor_states); i++)
+    {
+        length += example_ble_mesh_get_sensor_data(&sensor_states[i], status + length);
+    }
+
+    ESP_LOG_BUFFER_HEX("Sensor Data", status, length);
+    err = esp_ble_mesh_model_publish(sensor_server.model, ESP_BLE_MESH_MODEL_OP_SENSOR_STATUS, length, status, ROLE_NODE);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to publish Sensor Status, err %d", err);
+    }
+    free(status);
+}
+
 // main function which would send over the sensor data to the node
-static void example_ble_mesh_send_sensor_status(esp_ble_mesh_sensor_server_cb_param_t *param)
+static void ble_mesh_custom_send_sensor_status(esp_ble_mesh_sensor_server_cb_param_t *param)
 {
     uint8_t *status = NULL;
     uint16_t buf_size = 0;
@@ -297,11 +373,8 @@ static void example_ble_mesh_send_sensor_status(esp_ble_mesh_sensor_server_cb_pa
     net_buf_simple_add_u8(&sensor_data_0, (uint8_t)x_val);
     net_buf_simple_add_u8(&sensor_data_0, (uint8_t)y_val);
     net_buf_simple_add_u8(&sensor_data_0, (uint8_t)z_val);
-    // add bt address
-    net_buf_simple_add_u8(&sensor_data_0, bt_address);
-    ESP_LOGI("BT_ADDRESS", "%d", bt_address);
 
-    sleep_BMA220();
+    // sleep_BMA220();
 
     /*
      * Sensor Data state from Mesh Model Spec
@@ -342,19 +415,19 @@ static void example_ble_mesh_send_sensor_status(esp_ble_mesh_sensor_server_cb_pa
         return;
     }
 
-    if (param->value.get.sensor_data.op_en == false)
-    {
-        /* Mesh Model Spec:
-         * If the message is sent as a response to the Sensor Get message, and if the
-         * Property ID field of the incoming message is omitted, the Marshalled Sensor
-         * Data field shall contain data for all device properties within a sensor.
-         */
-        for (i = 0; i < ARRAY_SIZE(sensor_states); i++)
-        {
-            length += example_ble_mesh_get_sensor_data(&sensor_states[i], status + length);
-        }
-        goto send;
-    }
+    // if (param->value.get.sensor_data.op_en == false)
+    // {
+    //     /* Mesh Model Spec:
+    //      * If the message is sent as a response to the Sensor Get message, and if the
+    //      * Property ID field of the incoming message is omitted, the Marshalled Sensor
+    //      * Data field shall contain data for all device properties within a sensor.
+    //      */
+    //     for (i = 0; i < ARRAY_SIZE(sensor_states); i++)
+    //     {
+    //         length += example_ble_mesh_get_sensor_data(&sensor_states[i], status + length);
+    //     }
+    //     goto send;
+    // }
 
     /* Mesh Model Spec:
      * Otherwise, the Marshalled Sensor Data field shall contain data for the requested
@@ -382,15 +455,12 @@ static void example_ble_mesh_send_sensor_status(esp_ble_mesh_sensor_server_cb_pa
 send:
     // ESP_LOG_BUFFER_HEX("Sensor Data", status, length);
 
-    ESP_LOG_BUFFER_HEX("PURE Sensor Data", sensor_data_0.data, 4);
-    // if (param->model->pub == NULL)
-    // {
-    //     ESP_LOGI("ERROR", "THERE IS NO PUBLISHER");
-    // }
+    ESP_LOG_BUFFER_HEX("PURE Sensor Data", sensor_data_0.data, 3);
+
     esp_err_t ok;
     ESP_LOGI(TAG, "Publish address %d", publish_address);
 
-    ok = esp_ble_mesh_model_publish(global_mesh_model, ESP_BLE_MESH_MODEL_OP_SENSOR_STATUS,
+    ok = esp_ble_mesh_model_publish(sensor_server.model, ESP_BLE_MESH_MODEL_OP_SENSOR_STATUS,
                                     length, status, ROLE_NODE);
     if (ok)
     {
@@ -457,14 +527,14 @@ static void example_ble_mesh_sensor_server_cb(esp_ble_mesh_sensor_server_cb_even
         {
         case ESP_BLE_MESH_MODEL_OP_SENSOR_GET:
             ESP_LOGI(TAG, "ESP_BLE_MESH_MODEL_OP_SENSOR_GET");
-            if (called_before == false)
-            {
-                global_mesh_model = param->model;
-                global_sensor_param = param;
-                global_mesh_model->pub->publish_addr = publish_address;
-                xTaskCreate(&task_pub, "task_get", 2048, NULL, 7, NULL);
-                called_before = true;
-            }
+            // if (called_before == false)
+            // {
+            //     global_mesh_model = param->model;
+            //     global_sensor_param = param;
+            //     global_mesh_model->pub->publish_addr = publish_address;
+            //     xTaskCreate(&task_pub, "task_get", 2048, NULL, 7, NULL);
+            //     called_before = true;
+            // }
             // example_ble_mesh_send_sensor_status(param);
             break;
         case ESP_BLE_MESH_MODEL_OP_SENSOR_COLUMN_GET:
@@ -531,14 +601,11 @@ static esp_err_t ble_mesh_init(void)
 
 void task_pub(void *ignore)
 {
-
-    // global_mesh_model->pub->publish_addr = publish_address;
-    //  global_mesh_model->pub->msg = &acc_data;
-
     while (1)
     {
 
-        example_ble_mesh_send_sensor_status(global_sensor_param);
+        // ble_mesh_custom_send_sensor_status(global_sensor_param);
+        custom_ble_mesh_send_sensor_readings(4);
 
         vTaskDelay(500 / portTICK_PERIOD_MS);
     }
@@ -571,7 +638,7 @@ void app_main(void)
     bt_address = *esp_bt_dev_get_address();
     ESP_LOGI("BT ADDRESS: ", "%d", bt_address);
 
-    sleep_BMA220();
+    // sleep_BMA220();
 
     /* Initialize the Bluetooth Mesh Subsystem */
     err = ble_mesh_init();
