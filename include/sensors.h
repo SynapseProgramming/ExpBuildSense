@@ -65,4 +65,13 @@ void wake_BMA220();
 // helper function which ensures that the bma220 is alseep
 void sleep_BMA220();
 
+
+// function which initializes the ADC for battery voltage monitoring
+// ADC1_CHANNEL_4 is pin 32 (connected to battery)
+
+void init_ADC(esp_adc_cal_characteristics_t *adchar);
+
+// function which gets the current battery state. 0 (empty) 100 (full)
+uint8_t battery_voltage(esp_adc_cal_characteristics_t *adchar);
+
 #endif

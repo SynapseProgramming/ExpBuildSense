@@ -31,6 +31,8 @@ void task_pub(void *ignore);
 
 static uint8_t dev_uuid[ESP_BLE_MESH_OCTET16_LEN] = {0x32, 0x10};
 uint8_t bt_address = 0;
+// characteristics is used for battery voltage.
+esp_adc_cal_characteristics_t characteristics;
 // send_count is used to sleep the BLE mesh.
 int send_count = 0;
 
@@ -280,7 +282,7 @@ void custom_ble_mesh_send_sensor_readings(int8_t state)
     int8_t x_val = 0;
     int8_t y_val = 0;
     int8_t z_val = 0;
-    int8_t battery = 69;
+    uint8_t battery = 0;
 
     wake_BMA220();
 
@@ -292,6 +294,11 @@ void custom_ble_mesh_send_sensor_readings(int8_t state)
     ESP_LOGI("BMA220", "x value: %d", x_val);
     ESP_LOGI("BMA220", "y value: %d", y_val);
     ESP_LOGI("BMA220", "z value: %d", z_val);
+
+
+    battery = battery_voltage(&characteristics);
+
+    ESP_LOGI("BATTERY", " value: %d", battery);
 
     // TODO: use net_buf_simple_add to add data to the buffer
     net_buf_simple_add_u8(&sensor_data_0, (uint8_t)x_val);
@@ -458,9 +465,9 @@ static void example_ble_mesh_custom_model_cb(esp_ble_mesh_model_cb_event_t event
         if (send_count >= 10)
         {
             ESP_LOGI("INFO", "SENT ENOUGH DATA! SLEEPING!");
-           // esp_deep_sleep_start();
-           send_count=0;
-           esp_light_sleep_start();
+            // esp_deep_sleep_start();
+            send_count = 0;
+            esp_light_sleep_start();
         }
         break;
     default:
@@ -517,6 +524,9 @@ void app_main(void)
     esp_err_t err;
 
     ESP_LOGI(TAG, "Initializing...");
+
+    init_ADC(&characteristics);
+
 
     err = nvs_flash_init();
     if (err == ESP_ERR_NVS_NO_FREE_PAGES)
