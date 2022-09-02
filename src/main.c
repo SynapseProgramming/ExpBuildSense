@@ -31,6 +31,7 @@ void task_pub(void *ignore);
 
 static uint8_t dev_uuid[ESP_BLE_MESH_OCTET16_LEN] = {0x32, 0x10};
 uint8_t bt_address = 0;
+// send_count is used to sleep the BLE mesh.
 int send_count = 0;
 
 static esp_ble_mesh_cfg_srv_t config_server = {
@@ -52,7 +53,7 @@ static esp_ble_mesh_cfg_srv_t config_server = {
     .relay_retransmit = ESP_BLE_MESH_TRANSMIT(2, 20),
 };
 
-NET_BUF_SIMPLE_DEFINE(sensor_data_0, 3);
+NET_BUF_SIMPLE_DEFINE(sensor_data_0, 4);
 static esp_ble_mesh_sensor_state_t sensor_states[1] = {
     /* Mesh Model Spec:
      * Multiple instances of the Sensor states may be present within the same model,
@@ -78,7 +79,7 @@ static esp_ble_mesh_sensor_state_t sensor_states[1] = {
         .descriptor.measure_period = SENSOR_MEASURE_PERIOD,
         .descriptor.update_interval = SENSOR_UPDATE_INTERVAL,
         .sensor_data.format = ESP_BLE_MESH_SENSOR_DATA_FORMAT_A,
-        .sensor_data.length = 2, /* 2 represents the length is 3 */
+        .sensor_data.length = 3, /* 2 represents the length is 3 */
         .sensor_data.raw_value = &sensor_data_0,
     }};
 
@@ -279,6 +280,7 @@ void custom_ble_mesh_send_sensor_readings(int8_t state)
     int8_t x_val = 0;
     int8_t y_val = 0;
     int8_t z_val = 0;
+    int8_t battery = 69;
 
     wake_BMA220();
 
@@ -295,6 +297,7 @@ void custom_ble_mesh_send_sensor_readings(int8_t state)
     net_buf_simple_add_u8(&sensor_data_0, (uint8_t)x_val);
     net_buf_simple_add_u8(&sensor_data_0, (uint8_t)y_val);
     net_buf_simple_add_u8(&sensor_data_0, (uint8_t)z_val);
+    net_buf_simple_add_u8(&sensor_data_0, (uint8_t)battery);
 
     // Prep the data to be sent
     uint8_t *status = NULL;
