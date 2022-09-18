@@ -36,6 +36,12 @@ static const char *TAG = "sensors";
 #define I2C_MASTER_ACK 0
 #define I2C_MASTER_NACK 1
 
+#define V_REF 1700
+#define BATTERY_MAX 3200 // maximum voltage of battery in mV
+#define BATTERY_MIN 2600 // minimum voltage of battery in mV
+// ADC1_CHANNEL_4 is pin 32
+
+
 // function to initialise the BMA220 accelerometer sensor
 esp_err_t init_BMA220();
 
@@ -58,5 +64,14 @@ void wake_BMA220();
 
 // helper function which ensures that the bma220 is alseep
 void sleep_BMA220();
+
+
+// function which initializes the ADC for battery voltage monitoring
+// ADC1_CHANNEL_4 is pin 32 (connected to battery)
+
+void init_ADC(esp_adc_cal_characteristics_t *adchar);
+
+// function which gets the current battery state. 0 (empty) 100 (full)
+uint8_t battery_voltage(esp_adc_cal_characteristics_t *adchar);
 
 #endif

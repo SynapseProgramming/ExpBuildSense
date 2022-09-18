@@ -31,6 +31,10 @@ void task_pub(void *ignore);
 
 static uint8_t dev_uuid[ESP_BLE_MESH_OCTET16_LEN] = {0x32, 0x10};
 uint8_t bt_address = 0;
+// characteristics is used for battery voltage.
+esp_adc_cal_characteristics_t characteristics;
+// send_count is used to sleep the BLE mesh.
+int send_count = 0;
 
 static esp_ble_mesh_cfg_srv_t config_server = {
     .relay = ESP_BLE_MESH_RELAY_ENABLED,
@@ -51,7 +55,7 @@ static esp_ble_mesh_cfg_srv_t config_server = {
     .relay_retransmit = ESP_BLE_MESH_TRANSMIT(2, 20),
 };
 
-NET_BUF_SIMPLE_DEFINE(sensor_data_0, 3);
+NET_BUF_SIMPLE_DEFINE(sensor_data_0, 4);
 static esp_ble_mesh_sensor_state_t sensor_states[1] = {
     /* Mesh Model Spec:
      * Multiple instances of the Sensor states may be present within the same model,
@@ -77,7 +81,7 @@ static esp_ble_mesh_sensor_state_t sensor_states[1] = {
         .descriptor.measure_period = SENSOR_MEASURE_PERIOD,
         .descriptor.update_interval = SENSOR_UPDATE_INTERVAL,
         .sensor_data.format = ESP_BLE_MESH_SENSOR_DATA_FORMAT_A,
-        .sensor_data.length = 2, /* 2 represents the length is 3 */
+        .sensor_data.length = 3, /* 2 represents the length is 3 */
         .sensor_data.raw_value = &sensor_data_0,
     }};
 
@@ -273,11 +277,12 @@ static uint16_t example_ble_mesh_get_sensor_data(esp_ble_mesh_sensor_state_t *st
 void custom_ble_mesh_send_sensor_readings(int8_t state)
 {
     // Set the new Motion State
-     net_buf_simple_reset(&sensor_data_0);
+    net_buf_simple_reset(&sensor_data_0);
 
     int8_t x_val = 0;
     int8_t y_val = 0;
     int8_t z_val = 0;
+    uint8_t battery = 0;
 
     wake_BMA220();
 
@@ -290,10 +295,16 @@ void custom_ble_mesh_send_sensor_readings(int8_t state)
     ESP_LOGI("BMA220", "y value: %d", y_val);
     ESP_LOGI("BMA220", "z value: %d", z_val);
 
+
+    battery = battery_voltage(&characteristics);
+
+    ESP_LOGI("BATTERY", " value: %d", battery);
+
     // TODO: use net_buf_simple_add to add data to the buffer
     net_buf_simple_add_u8(&sensor_data_0, (uint8_t)x_val);
     net_buf_simple_add_u8(&sensor_data_0, (uint8_t)y_val);
     net_buf_simple_add_u8(&sensor_data_0, (uint8_t)z_val);
+    net_buf_simple_add_u8(&sensor_data_0, (uint8_t)battery);
 
     // Prep the data to be sent
     uint8_t *status = NULL;
@@ -397,7 +408,6 @@ static void example_ble_mesh_send_sensor_series_status(esp_ble_mesh_sensor_serve
     }
 }
 
-bool called_before = false;
 static void example_ble_mesh_sensor_server_cb(esp_ble_mesh_sensor_server_cb_event_t event,
                                               esp_ble_mesh_sensor_server_cb_param_t *param)
 {
@@ -444,6 +454,27 @@ static void example_ble_mesh_sensor_server_cb(esp_ble_mesh_sensor_server_cb_even
         break;
     }
 }
+
+static void example_ble_mesh_custom_model_cb(esp_ble_mesh_model_cb_event_t event,
+                                             esp_ble_mesh_model_cb_param_t *param)
+{
+    switch (event)
+    {
+    case ESP_BLE_MESH_MODEL_PUBLISH_COMP_EVT:
+        ESP_LOGI("INFO", "DATA SENT!");
+        if (send_count >= 10)
+        {
+            ESP_LOGI("INFO", "SENT ENOUGH DATA! SLEEPING!");
+            // esp_deep_sleep_start();
+            send_count = 0;
+            esp_light_sleep_start();
+        }
+        break;
+    default:
+        break;
+    }
+}
+
 // TODO: 1. main function for ble mesh
 static esp_err_t ble_mesh_init(void)
 {
@@ -453,6 +484,7 @@ static esp_err_t ble_mesh_init(void)
     esp_ble_mesh_register_prov_callback(example_ble_mesh_provisioning_cb);
     esp_ble_mesh_register_config_server_callback(example_ble_mesh_config_server_cb);
     esp_ble_mesh_register_sensor_server_callback(example_ble_mesh_sensor_server_cb);
+    esp_ble_mesh_register_custom_model_callback(example_ble_mesh_custom_model_cb);
 
     // provision is device uuid.
     err = esp_ble_mesh_init(&provision, &composition);
@@ -480,6 +512,7 @@ void task_pub(void *ignore)
     {
 
         custom_ble_mesh_send_sensor_readings(4);
+        send_count++;
 
         vTaskDelay(500 / portTICK_PERIOD_MS);
     }
@@ -491,6 +524,9 @@ void app_main(void)
     esp_err_t err;
 
     ESP_LOGI(TAG, "Initializing...");
+
+    init_ADC(&characteristics);
+
 
     err = nvs_flash_init();
     if (err == ESP_ERR_NVS_NO_FREE_PAGES)
@@ -511,6 +547,7 @@ void app_main(void)
 
     bt_address = *esp_bt_dev_get_address();
     ESP_LOGI("BT ADDRESS: ", "%d", bt_address);
+    esp_sleep_enable_timer_wakeup(5e6);
 
     // sleep_BMA220();
 

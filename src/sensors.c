@@ -79,3 +79,28 @@ void sleep_BMA220()
     }
     // otherwise, the sensor is currently asleep!
 }
+
+void init_ADC(esp_adc_cal_characteristics_t *adchar)
+{
+
+    // initialise ADC for battery
+    adc1_config_width(ADC_WIDTH_BIT_12);
+    adc1_config_channel_atten(ADC1_CHANNEL_4, ADC_ATTEN_DB_11);
+    esp_adc_cal_characterize(ADC_UNIT_1, ADC_ATTEN_DB_11, ADC_WIDTH_BIT_12, 0, adchar);
+}
+
+uint8_t battery_voltage(esp_adc_cal_characteristics_t *adchar)
+{
+    double scaled_voltage = 0;
+    uint32_t val = adc1_get_raw(ADC1_CHANNEL_4);
+    uint32_t voltage = esp_adc_cal_raw_to_voltage(val, adchar);
+    // limit voltage between max and min range
+    if (voltage >= BATTERY_MAX)
+        voltage = BATTERY_MAX;
+    if (voltage <= BATTERY_MIN)
+        voltage = BATTERY_MIN;
+
+    scaled_voltage = (1.0 / 6.0) * voltage - 433.333333;
+
+    return (uint8_t) scaled_voltage;
+}
